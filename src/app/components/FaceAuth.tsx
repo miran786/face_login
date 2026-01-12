@@ -14,32 +14,46 @@ interface FaceAuthProps {
 
 export function FaceAuth({ onAuthSuccess, onRegister }: FaceAuthProps) {
   // ...
-  if (isScanningRef.current) {
-    const users = await db.users.toArray();
-    const matchedUser = faceService.matchFace(detection.descriptor, users);
+  // ... inside trackFace ...
+  if (detection) {
+    // Resize detection to match canvas size
+    const resizedDetections = faceapi.resizeResults(detection, displaySize);
 
-    if (matchedUser) {
-      setAuthStatus('success');
-      isScanningRef.current = false;
-      setIsScanning(false);
-      setTimeout(() => onAuthSuccess(matchedUser), 1000);
-    } else {
+    // Draw visual markers (Custom White Box)
+    const box = resizedDetections.detection.box;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+    }
+
+    if (isScanningRef.current) {
+      const users = await db.users.toArray();
+      const matchedUser = faceService.matchFace(detection.descriptor, users);
+
+      if (matchedUser) {
+        setAuthStatus('success');
+        isScanningRef.current = false;
+        setIsScanning(false);
+        setTimeout(() => onAuthSuccess(matchedUser), 1000);
+      } else {
+        consecutiveFailuresRef.current++;
+      }
+    }
+  } else {
+    if (isScanningRef.current) {
       consecutiveFailuresRef.current++;
     }
   }
-} else {
-  if (isScanningRef.current) {
-    consecutiveFailuresRef.current++;
+
+  if (isScanningRef.current && consecutiveFailuresRef.current > MAX_FAILURES) {
+    setAuthStatus('failed');
+    setIsScanning(false);
+    isScanningRef.current = false;
   }
-}
 
-if (isScanningRef.current && consecutiveFailuresRef.current > MAX_FAILURES) {
-  setAuthStatus('failed');
-  setIsScanning(false);
-  isScanningRef.current = false;
-}
-
-        } catch (err) {
+} catch (err) {
   console.error("Tracking error:", err);
 }
       }
