@@ -25,7 +25,7 @@ class FaceService {
         }
     }
 
-    async detectFace(video: HTMLVideoElement): Promise<Float32Array | null> {
+    async detectFace(video: HTMLVideoElement) {
         if (!this.modelsLoaded) {
             await this.loadModels();
         }
@@ -40,7 +40,7 @@ class FaceService {
             return null;
         }
 
-        return detection.descriptor;
+        return detection;
     }
 
     matchFace(descriptor: Float32Array, users: any[]): any | null {

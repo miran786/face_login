@@ -73,37 +73,6 @@ export function RegistrationStart({ onStartFaceID, onUseTraditional }: Registrat
           </div>
         </motion.div>
 
-        {/* Divider */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="h-px bg-white/20 flex-1" />
-          <span className="text-purple-300 text-sm">or</span>
-          <div className="h-px bg-white/20 flex-1" />
-        </div>
-
-        {/* Traditional Option */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          <Button
-            onClick={onUseTraditional}
-            variant="outline"
-            className="w-full border-white/20 text-white hover:bg-white/10 py-6 rounded-2xl text-lg bg-white/5 backdrop-blur-xl"
-          >
-            <Mail className="mr-2" />
-            Use Email & Password Instead
-          </Button>
-
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 mt-4">
-            <div className="flex gap-3">
-              <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-              <p className="text-yellow-200 text-sm">
-                Traditional registration is available if Face ID isn't supported on your device
-              </p>
-            </div>
-          </div>
-        </motion.div>
 
         {/* Footer */}
         <p className="text-center text-purple-300 text-xs mt-8">

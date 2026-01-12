@@ -26,10 +26,13 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete }: FaceRegistr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await db.users.add({
-        ...formData,
-        faceData: faceDescriptor ? Array.from(faceDescriptor) : undefined
-      });
+      const newUser = {
+        ...formData, // Spreads fullName, email, phone from formData
+        faceData: faceDescriptor ? Array.from(faceDescriptor) : undefined, // Convert Float32Array to regular array
+        balance: 1000, // Initial testing balance
+      };
+
+      const id = await db.users.add(newUser);
       onComplete(formData);
     } catch (error) {
       console.error('Failed to save user:', error);

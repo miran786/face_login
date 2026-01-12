@@ -59,9 +59,10 @@ export function FaceRegistration({ userData, onComplete }: FaceRegistrationProps
       if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
 
       // Faster detection settings
-      const descriptor = await faceService.detectFace(videoRef.current);
+      const detection = await faceService.detectFace(videoRef.current);
 
-      if (descriptor) {
+      if (detection) {
+        const descriptor = detection.descriptor;
         setDetectedFace(true);
         setScanStage('scanning');
         // Faster progress: +20 per frame => 5 good frames needed

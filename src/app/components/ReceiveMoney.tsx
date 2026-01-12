@@ -5,11 +5,13 @@ import { Button } from './ui/button';
 
 interface ReceiveMoneyProps {
   onBack: () => void;
+  userEmail: string;
+  userName: string;
 }
 
-export function ReceiveMoney({ onBack }: ReceiveMoneyProps) {
+export function ReceiveMoney({ onBack, userEmail, userName }: ReceiveMoneyProps) {
   const [copied, setCopied] = useState(false);
-  const walletAddress = 'FW-7X9K-M4P2-8QN5-WALLET';
+  const walletAddress = userEmail; // Using email as the simplest identifier for now
 
   const handleCopy = () => {
     navigator.clipboard.writeText(walletAddress);
@@ -40,7 +42,7 @@ export function ReceiveMoney({ onBack }: ReceiveMoneyProps) {
           className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 mb-6"
         >
           <p className="text-purple-300 text-center mb-6">
-            Share this QR code or wallet address
+            Share this QR code or use your email
           </p>
 
           {/* QR Code */}
@@ -51,7 +53,7 @@ export function ReceiveMoney({ onBack }: ReceiveMoneyProps) {
             <svg viewBox="0 0 200 200" className="w-full">
               {/* Simple QR code representation */}
               <rect width="200" height="200" fill="white" />
-              
+
               {/* Corner markers */}
               <rect x="10" y="10" width="40" height="40" fill="black" />
               <rect x="20" y="20" width="20" height="20" fill="white" />
@@ -59,7 +61,7 @@ export function ReceiveMoney({ onBack }: ReceiveMoneyProps) {
               <rect x="160" y="20" width="20" height="20" fill="white" />
               <rect x="10" y="150" width="40" height="40" fill="black" />
               <rect x="20" y="160" width="20" height="20" fill="white" />
-              
+
               {/* Random pattern blocks */}
               {[...Array(20)].map((_, i) => {
                 const x = 60 + (i % 8) * 15;
@@ -81,8 +83,8 @@ export function ReceiveMoney({ onBack }: ReceiveMoneyProps) {
 
           {/* Wallet Address */}
           <div className="bg-white/10 rounded-2xl p-4 mb-4">
-            <p className="text-xs text-purple-300 mb-2">Wallet Address</p>
-            <p className="text-white text-center break-all">{walletAddress}</p>
+            <p className="text-xs text-purple-300 mb-2">My ID (Email)</p>
+            <p className="text-white text-center break-all font-mono">{userEmail}</p>
           </div>
 
           {/* Action Buttons */}
@@ -118,44 +120,11 @@ export function ReceiveMoney({ onBack }: ReceiveMoneyProps) {
           className="space-y-4"
         >
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-            <div className="flex gap-4">
-              <div className="bg-purple-500/20 rounded-full w-10 h-10 flex items-center justify-center flex-shrink-0">
-                <span className="text-purple-300">1</span>
-              </div>
-              <div>
-                <h4 className="text-white mb-1">Scan QR Code</h4>
-                <p className="text-purple-300 text-sm">
-                  Ask the sender to scan this QR code with their FaceWallet app
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-            <div className="flex gap-4">
-              <div className="bg-purple-500/20 rounded-full w-10 h-10 flex items-center justify-center flex-shrink-0">
-                <span className="text-purple-300">2</span>
-              </div>
-              <div>
-                <h4 className="text-white mb-1">Share Address</h4>
-                <p className="text-purple-300 text-sm">
-                  Or share your wallet address directly via messaging apps
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-            <div className="flex gap-4">
-              <div className="bg-purple-500/20 rounded-full w-10 h-10 flex items-center justify-center flex-shrink-0">
-                <span className="text-purple-300">3</span>
-              </div>
-              <div>
-                <h4 className="text-white mb-1">Receive Instantly</h4>
-                <p className="text-purple-300 text-sm">
-                  Funds will appear in your wallet within seconds
-                </p>
-              </div>
+            <div>
+              <h4 className="text-white mb-1">How it works</h4>
+              <p className="text-purple-300 text-sm">
+                Senders can find you by your name or email address "{userEmail}" in the Send Money screen.
+              </p>
             </div>
           </div>
         </motion.div>

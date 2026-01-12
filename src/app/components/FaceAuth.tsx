@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Scan, CheckCircle2, Lock, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { faceService } from '../../services/faceService';
+import * as faceapi from 'face-api.js';
 import { db } from '../../db';
 
 interface FaceAuthProps {
@@ -43,68 +44,106 @@ export function FaceAuth({ onAuthSuccess, onRegister }: FaceAuthProps) {
     };
   }, []);
 
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const isScanningRef = useRef(false);
   const consecutiveFailuresRef = useRef(0);
-  const MAX_FAILURES = 30; // Approx 3-5 seconds depending on device speed
+  const MAX_FAILURES = 60; // Increased since we are scanning constantly
 
-  const handleScan = async () => {
-    if (!videoRef.current || isScanningRef.current) return;
+  // Main tracking loop
+  useEffect(() => {
+    let animationFrameId: number;
+    let isTracking = true;
 
-    isScanningRef.current = true;
-    consecutiveFailuresRef.current = 0;
-    setIsScanning(true);
-    setAuthStatus('scanning');
+    const trackFace = async () => {
+      if (!videoRef.current || !canvasRef.current || !isTracking) return;
 
-    try {
-      const users = await db.users.toArray();
+      // Ensure video dimensions match canvas
+      if (videoRef.current.readyState === 4) {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
 
-      const scanLoop = async () => {
-        if (!videoRef.current || !isScanningRef.current) return;
+        // Match dimensions
+        const displaySize = { width: video.videoWidth, height: video.videoHeight };
+        if (canvas.width !== displaySize.width || canvas.height !== displaySize.height) {
+          faceapi.matchDimensions(canvas, displaySize);
+        }
 
         try {
-          const descriptor = await faceService.detectFace(videoRef.current);
+          // Detect face with landmarks
+          const detection = await faceService.detectFace(video);
 
-          if (descriptor) {
-            const matchedUser = faceService.matchFace(descriptor, users);
-            if (matchedUser) {
-              setAuthStatus('success');
-              isScanningRef.current = false;
-              setIsScanning(false);
-              setTimeout(() => {
-                onAuthSuccess();
-              }, 1000);
-              return;
+          // Clear previous drawings
+          const ctx = canvas.getContext('2d');
+          if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          if (detection) {
+            // Resize detection to match canvas size
+            const resizedDetections = faceapi.resizeResults(detection, displaySize);
+
+            // Draw visual markers (Custom White Box)
+            // faceapi.draw.drawDetections(canvas, resizedDetections); 
+            const box = resizedDetections.detection.box;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(box.x, box.y, box.width, box.height);
+            }
+
+            // Logic for Authentication (only if we are in 'scanning' mode or auto-scanning)
+            // The user wants markers "always". Authentication can happen if we decide to.
+            // For now, let's keep authentication tied to the isScanning state or just auto-auth?
+            // User said "keep scanning... say face not registered".
+            // Let's ALWAYS try to match if we have a face, but only trigger "Success" / "Fail" effects if active?
+            // Or maybe we treat "idle" as "passive scanning" and "scanning" as "active attempt"?
+
+            if (isScanningRef.current) {
+              const users = await db.users.toArray();
+              const matchedUser = faceService.matchFace(detection.descriptor, users);
+
+              if (matchedUser) {
+                setAuthStatus('success');
+                isScanningRef.current = false;
+                setIsScanning(false);
+                setTimeout(() => onAuthSuccess(), 1000);
+              } else {
+                consecutiveFailuresRef.current++;
+              }
+            }
+          } else {
+            if (isScanningRef.current) {
+              consecutiveFailuresRef.current++;
             }
           }
 
-          // Increment failure count if face detected but not matched, 
-          // OR if no face detected (depending on preference, usually we count both)
-          consecutiveFailuresRef.current++;
-
-          if (consecutiveFailuresRef.current > MAX_FAILURES) {
+          if (isScanningRef.current && consecutiveFailuresRef.current > MAX_FAILURES) {
             setAuthStatus('failed');
-            isScanningRef.current = false;
             setIsScanning(false);
-            return;
+            isScanningRef.current = false;
           }
 
         } catch (err) {
-          console.error("Scan error:", err);
+          console.error("Tracking error:", err);
         }
+      }
 
-        if (isScanningRef.current) {
-          requestAnimationFrame(() => setTimeout(scanLoop, 100));
-        }
-      };
+      animationFrameId = requestAnimationFrame(trackFace);
+    };
 
-      scanLoop();
+    trackFace();
 
-    } catch (error) {
-      console.error("Auth init error", error);
-      setAuthStatus('failed');
-      isScanningRef.current = false;
-      setIsScanning(false);
-    }
+    return () => {
+      isTracking = false;
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []); // Run once on mount
+
+  const handleStartLogin = () => {
+    // Just enable the auth check logic flag
+    isScanningRef.current = true;
+    consecutiveFailuresRef.current = 0;
+    setAuthStatus('scanning');
+    setIsScanning(true); // Keep this to trigger UI changes
   };
 
   // Cleanup on unmount
@@ -144,13 +183,20 @@ export function FaceAuth({ onAuthSuccess, onRegister }: FaceAuthProps) {
                 </div>
               </div>
             ) : (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover transform scale-x-[-1]"
-              />
+              <>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover transform scale-x-[-1]"
+                />
+                {/* Canvas for Face Landmarks */}
+                <canvas
+                  ref={canvasRef}
+                  className="absolute inset-0 w-full h-full object-cover transform scale-x-[-1]"
+                />
+              </>
             )}
 
             {/* Scanning overlay */}
@@ -194,7 +240,7 @@ export function FaceAuth({ onAuthSuccess, onRegister }: FaceAuthProps) {
 
           {!isScanning && authStatus !== 'success' && (
             <Button
-              onClick={handleScan}
+              onClick={handleStartLogin}
               className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl text-lg"
             >
               <Scan className="mr-2" />
