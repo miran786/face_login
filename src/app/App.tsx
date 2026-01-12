@@ -51,7 +51,8 @@ function App() {
     setAppState('start');
   };
 
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = (user: any) => {
+    setUserData(user);
     setAppState('dashboard');
   };
 
@@ -110,7 +111,12 @@ function App() {
     return <FaceAuth onAuthSuccess={handleLoginSuccess} onRegister={handleRegister} />;
   }
 
-  return <Dashboard onLogout={handleLogout} />;
+  // Ensure userData is present before rendering Dashboard
+  if (!userData) {
+    return <div>Loading...</div>; // Or redirect to login
+  }
+
+  return <Dashboard user={userData as any} onLogout={handleLogout} />;
 }
 
 export default App;

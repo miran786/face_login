@@ -30,18 +30,28 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
 
   // Real Data Fetching
   const currentUser = useLiveQuery(
-    () => db.users.where('email').equals(user.email).first(),
-    [user.email]
+    () => {
+      if (!user?.email) return undefined;
+      return db.users.where('email').equals(user.email).first();
+    },
+    [user?.email]
   );
 
   const transactions = useLiveQuery(
-    () => db.transactions
-      .where('senderEmail').equals(user.email)
-      .or('recipientEmail').equals(user.email)
-      .reverse()
-      .sortBy('date'),
-    [user.email]
+    () => {
+      if (!user?.email) return [];
+      return db.transactions
+        .where('senderEmail').equals(user.email)
+        .or('recipientEmail').equals(user.email)
+        .reverse()
+        .sortBy('date');
+    },
+    [user?.email]
   ) || [];
+
+  if (!user || !user.email) {
+    return <div className="min-h-screen flex items-center justify-center text-white">Loading user profile...</div>;
+  }
 
   // Use DB balance or default to 0
   const currentBalance = currentUser?.balance !== undefined ? currentUser.balance : 0;
