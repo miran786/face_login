@@ -19,13 +19,13 @@ interface TransactionHistoryProps {
 export function TransactionHistory({ transactions, onBack }: TransactionHistoryProps) {
   const groupTransactionsByDate = () => {
     const grouped: { [key: string]: Transaction[] } = {};
-    
+
     transactions.forEach(transaction => {
       const date = new Date(transaction.date);
       const today = new Date();
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      
+
       let label: string;
       if (date.toDateString() === today.toDateString()) {
         label = 'Today';
@@ -34,13 +34,13 @@ export function TransactionHistory({ transactions, onBack }: TransactionHistoryP
       } else {
         label = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
       }
-      
+
       if (!grouped[label]) {
         grouped[label] = [];
       }
       grouped[label].push(transaction);
     });
-    
+
     return grouped;
   };
 
@@ -76,7 +76,7 @@ export function TransactionHistory({ transactions, onBack }: TransactionHistoryP
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4">
             <p className="text-purple-300 text-sm mb-1">Total Sent</p>
             <p className="text-white text-xl">
-              ${transactions
+              ₹{transactions
                 .filter(t => t.type === 'sent')
                 .reduce((sum, t) => sum + t.amount, 0)
                 .toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -85,7 +85,7 @@ export function TransactionHistory({ transactions, onBack }: TransactionHistoryP
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4">
             <p className="text-purple-300 text-sm mb-1">Total Received</p>
             <p className="text-white text-xl">
-              ${transactions
+              ₹{transactions
                 .filter(t => t.type === 'received')
                 .reduce((sum, t) => sum + t.amount, 0)
                 .toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -110,11 +110,10 @@ export function TransactionHistory({ transactions, onBack }: TransactionHistoryP
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`rounded-full w-12 h-12 flex items-center justify-center ${
-                        transaction.type === 'received' 
-                          ? 'bg-green-500/20' 
+                      <div className={`rounded-full w-12 h-12 flex items-center justify-center ${transaction.type === 'received'
+                          ? 'bg-green-500/20'
                           : 'bg-red-500/20'
-                      }`}>
+                        }`}>
                         {transaction.type === 'received' ? (
                           <ArrowDownLeft className="text-green-400" />
                         ) : (
@@ -130,21 +129,19 @@ export function TransactionHistory({ transactions, onBack }: TransactionHistoryP
                               minute: '2-digit'
                             })}
                           </p>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            transaction.status === 'completed'
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${transaction.status === 'completed'
                               ? 'bg-green-500/20 text-green-400'
                               : 'bg-yellow-500/20 text-yellow-400'
-                          }`}>
+                            }`}>
                             {transaction.status}
                           </span>
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`font-semibold ${
-                        transaction.type === 'received' ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {transaction.type === 'received' ? '+' : '-'}$
+                      <p className={`font-semibold ${transaction.type === 'received' ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                        {transaction.type === 'received' ? '+' : '-'}₹
                         {transaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </p>
                     </div>

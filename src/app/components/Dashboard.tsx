@@ -30,18 +30,28 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
 
   // Real Data Fetching
   const currentUser = useLiveQuery(
-    () => db.users.where('email').equals(user.email).first(),
-    [user.email]
+    () => {
+      if (!user?.email) return undefined;
+      return db.users.where('email').equals(user.email).first();
+    },
+    [user?.email]
   );
 
   const transactions = useLiveQuery(
-    () => db.transactions
-      .where('senderEmail').equals(user.email)
-      .or('recipientEmail').equals(user.email)
-      .reverse()
-      .sortBy('date'),
-    [user.email]
+    () => {
+      if (!user?.email) return [];
+      return db.transactions
+        .where('senderEmail').equals(user.email)
+        .or('recipientEmail').equals(user.email)
+        .reverse()
+        .sortBy('date');
+    },
+    [user?.email]
   ) || [];
+
+  if (!user || !user.email) {
+    return <div className="min-h-screen flex items-center justify-center text-white">Loading user profile...</div>;
+  }
 
   // Use DB balance or default to 0
   const currentBalance = currentUser?.balance !== undefined ? currentUser.balance : 0;
@@ -67,8 +77,12 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       {/* Header */}
       <div className="flex items-center justify-between p-6">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-lg font-bold text-white shadow-lg shadow-purple-900/50 border border-white/10">
-            {user.fullName.split(' ').map(n => n[0]).join('')}
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-lg font-bold text-white shadow-lg shadow-purple-900/50 border border-white/10 overflow-hidden">
+            {currentUser?.avatar ? (
+              <img src={currentUser.avatar} alt="Profile" className="w-full h-full object-cover transform scale-x-[-1]" />
+            ) : (
+              user.fullName.split(' ').map(n => n[0]).join('')
+            )}
           </div>
           <div>
             <h2 className="text-white font-semibold">Welcome back,</h2>
@@ -84,12 +98,6 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
             className="text-white/70 hover:text-white hover:bg-white/10 rounded-full"
           >
             <LogOut className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="text-white/70 hover:text-white hover:bg-white/10 rounded-full">
-            <Bell className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="text-white/70 hover:text-white hover:bg-white/10 rounded-full">
-            <Settings className="w-5 h-5" />
           </Button>
         </div>
       </div>
@@ -107,7 +115,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
           <div className="relative z-10">
             <p className="text-purple-100 text-sm font-medium mb-2 opacity-80">Total Balance</p>
             <h1 className="text-5xl font-bold text-white mb-6">
-              ${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              ₹{currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </h1>
 
             <div className="flex gap-4">
@@ -195,7 +203,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                 </div>
                 <span className={`font-bold ${isReceived ? 'text-green-400' : 'text-white'
                   }`}>
-                  {isReceived ? '+' : '-'}${tx.amount.toFixed(2)}
+                  {isReceived ? '+' : '-'}₹{tx.amount.toFixed(2)}
                 </span>
               </motion.div>
             )
