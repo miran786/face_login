@@ -4,11 +4,14 @@ A modern, secure, and interactive web application demonstrating Face ID authenti
 
 ## Features
 
--   **Face ID Registration**: A simulated, interactive face scanning experience with real-time visual feedback and 3D face mesh visualization.
--   **Traditional Registration**: a fallback registration flow for users who prefer standard methods.
--   **Interactive Dashboard**: A user dashboard displaying successful logins, flagged attempts, and session details (mock data).
--   **Modern UI/UX**: Built with a focus on aesthetics using TailwindCSS, Framer Motion for animations, and Radix UI for accessible components.
--   **Responsive Design**: Fully responsive layout optimized for both desktop and mobile devices.
+-   **Secure Face ID**: Powered by a Python backend (DeepFace) for high-accuracy, professional-grade biometric authentication.
+-   **Two-Factor Authentication (2FA)**: Adds an extra layer of security with Email OTP verification after every login.
+-   **Unified Registration**: Register face and password simultaneously for a seamless onboarding experience.
+-   **Password Fallback**: A reliable alternative login method if Face ID fails or is unavailable.
+-   **Interactive Dashboard**: A user dashboard displaying successful logins, flagged attempts, and session details.
+-   **Real-time Notifications**: Transaction alerts sent directly to your email.
+-   **Modern UI/UX**: Built with a focus on aesthetics using TailwindCSS, Framer Motion, and Radix UI.
+-   **Responsive Design**: Fully responsive layout optimized for mobile and desktop.
 
 ## Tech Stack
 
@@ -55,8 +58,38 @@ The application will be available at `http://localhost:5173` (or the port shown 
 
 To build the application for production:
 
-```bash
 npm run build
+```
+
+## Face Recognition Backend (Python)
+
+This project uses a Python backend for secure and accurate face recognition via **DeepFace**.
+
+### Prerequisites
+-   Python 3.8+
+-   pip
+
+### Setup
+1.  Navigate to the backend directory:
+    ```bash
+    cd backend
+    ```
+2.  Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+### Running the Server
+Start the Face Recognition API:
+```bash
+uvicorn main:app --reload
+```
+The server will run at `http://localhost:8000`. This must be running for Face ID login and registration to work.
+
+### Frontend
+In a separate terminal, run the React app:
+```bash
+npm run dev
 ```
 
 ## Project Structure

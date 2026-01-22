@@ -7,12 +7,13 @@ import { faceService } from '../../services/faceService';
 
 interface FaceRegistrationProps {
   userData: UserData;
-  onComplete: (descriptor: Float32Array) => void;
+  onComplete: (descriptor: Float32Array, faceImage?: string) => void;
+  onBack: () => void;
 }
 
 type ScanStage = 'loading' | 'center' | 'scanning' | 'complete';
 
-export function FaceRegistration({ userData, onComplete }: FaceRegistrationProps) {
+export function FaceRegistration({ userData, onComplete, onBack }: FaceRegistrationProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanStage, setScanStage] = useState<ScanStage>('center');
@@ -65,14 +66,21 @@ export function FaceRegistration({ userData, onComplete }: FaceRegistrationProps
         const descriptor = detection.descriptor;
         setDetectedFace(true);
         setScanStage('scanning');
-        // Faster progress: +20 per frame => 5 good frames needed
+        // Slower progress: +2 per frame => 50 good frames needed (approx 5s)
+        // This ensures the user looks at the camera longer, building trust
         setScanProgress(prev => {
-          const newProgress = Math.min(prev + 20, 100);
+          const newProgress = Math.min(prev + 2, 100);
           if (newProgress >= 100) {
             clearInterval(detectLoop);
             setScanStage('complete');
+
+            let faceImage: string | undefined;
+            if (videoRef.current) {
+              faceImage = faceService.captureFace(videoRef.current);
+            }
+
             setTimeout(() => {
-              onComplete(descriptor);
+              onComplete(descriptor, faceImage);
             }, 800);
           }
           return newProgress;
@@ -180,8 +188,13 @@ export function FaceRegistration({ userData, onComplete }: FaceRegistrationProps
               Start Face Scan
             </Button>
           )}
+
         </div>
-      </motion.div>
-    </div>
+
+        <div className="text-center">
+          <button onClick={onBack} className="text-white/50 hover:text-white text-sm">Back</button>
+        </div>
+      </motion.div >
+    </div >
   );
 }

@@ -5,8 +5,9 @@ import type { TraditionalUserData } from './app/components/TraditionalRegistrati
 export interface User extends UserData {
     id?: number;
     password?: string;
-    faceData?: number[]; // Placeholder for future face embeddings
+    faceData?: number[] | string; // Encrypted string or Legacy array
     balance?: number;
+    avatar?: string; // Base64 image
 }
 
 export interface Transaction {
@@ -26,11 +27,17 @@ export class FaceLoginDB extends Dexie {
 
     constructor() {
         super('FaceLoginDB');
+        // Latest Version 3: Adds Avatar
+        this.version(3).stores({
+            users: '++id, fullName, email, phone',
+            transactions: '++id, type, amount, recipient, recipientEmail, senderEmail, date, status'
+        });
+
+        // Version 2: Added Balance
         this.version(2).stores({
-            users: '++id, fullName, email, phone', // Primary key and indexed props
+            users: '++id, fullName, email, phone',
             transactions: '++id, type, amount, recipient, recipientEmail, senderEmail, date, status'
         }).upgrade(tx => {
-            // Migration to add default balance to existing users if needed
             return tx.table('users').toCollection().modify(user => {
                 if (user.balance === undefined) user.balance = 1000;
             });

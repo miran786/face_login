@@ -126,7 +126,7 @@ export function SendMoney({ onBack, onSendSuccess, currentUserEmail }: SendMoney
           </motion.div>
           <h2 className="text-3xl text-white mb-2">Transaction Successful!</h2>
           <p className="text-green-300">
-            ${parseFloat(amount).toFixed(2)} sent to {selectedContact?.name}
+            ₹{parseFloat(amount).toFixed(2)} sent to {selectedContact?.name}
           </p>
         </motion.div>
       </div>
@@ -192,7 +192,7 @@ export function SendMoney({ onBack, onSendSuccess, currentUserEmail }: SendMoney
         >
           <p className="text-purple-300 text-sm mb-2 text-center">Amount</p>
           <div className="flex items-center justify-center mb-6">
-            <span className="text-white text-6xl">$</span>
+            <span className="text-white text-6xl">₹</span>
             <input
               type="text"
               value={amount}
@@ -209,9 +209,9 @@ export function SendMoney({ onBack, onSendSuccess, currentUserEmail }: SendMoney
                 key={value}
                 onClick={() => addToAmount(value)}
                 variant="outline"
-                className="border-white/20 text-white hover:bg-white/20"
+                className="border-white/20 bg-transparent text-white hover:bg-white/20"
               >
-                +${value}
+                +₹{value}
               </Button>
             ))}
           </div>
@@ -242,8 +242,8 @@ export function SendMoney({ onBack, onSendSuccess, currentUserEmail }: SendMoney
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setSelectedContact(contact)}
                 className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${selectedContact?.email === contact.email
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600'
-                    : 'bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600'
+                  : 'bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20'
                   }`}
               >
                 <div className={`w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-2xl`}>
