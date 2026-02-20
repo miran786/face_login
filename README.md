@@ -65,25 +65,41 @@ npm run build
 
 This project uses a Python backend for secure and accurate face recognition via **DeepFace**.
 
-### Prerequisites
--   Python 3.8+
--   pip
+### Option 1: Docker (Recommended)
 
-### Setup
+The easiest way to run the backend — no Python version conflicts, works on any machine.
+
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+```bash
+cd backend
+docker compose up --build
+```
+
+The server will start at `http://localhost:8000`. Registered face data is persisted in the `face_db/` volume.
+
+To stop: `Ctrl+C` or `docker compose down`
+
+### Option 2: Manual Setup
+
+**Prerequisites:** Python 3.10 or 3.11, pip
+
 1.  Navigate to the backend directory:
     ```bash
     cd backend
     ```
-2.  Install dependencies:
+2.  Create a virtual environment and install dependencies:
     ```bash
+    python -m venv venv
+    venv\Scripts\activate        # Windows
+    # source venv/bin/activate   # macOS/Linux
     pip install -r requirements.txt
     ```
+3.  Start the server:
+    ```bash
+    python main.py
+    ```
 
-### Running the Server
-Start the Face Recognition API:
-```bash
-uvicorn main:app --reload
-```
 The server will run at `http://localhost:8000`. This must be running for Face ID login and registration to work.
 
 ### Frontend
