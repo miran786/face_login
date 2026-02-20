@@ -362,43 +362,62 @@ face_login/
 ├── backend/
 │   ├── main.py                   # FastAPI server (/verify, /register)
 │   ├── requirements.txt          # Python dependencies
-│   ├── Dockerfile                # Python 3.11-slim container
-│   ├── docker-compose.yml        # One-command backend setup
+│   ├── Dockerfile                # Backend container
+│   ├── docker-compose.yml        # Backend-only Docker setup
 │   ├── .dockerignore             # Excludes venv, cache
 │   └── face_db/                  # Stored face images per user
 │
+├── start.bat                     # ⚡ One-click start (Windows)
+├── start.sh                      # ⚡ One-click start (macOS/Linux)
+├── Dockerfile                    # Frontend container
+├── docker-compose.yml            # Full-stack Docker setup
+├── .dockerignore                 # Root Docker ignore
 ├── docs/                         # Documentation
 └── public/                       # Static assets
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
-### Prerequisites
+### Option 1: One-Click Script ⚡ (Easiest)
 
-- [Node.js](https://nodejs.org/) v16+
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for backend)
+> **Requires:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) + [Node.js](https://nodejs.org/) v16+
 
-### 1. Clone & Install Frontend
+**Windows** — Double-click `start.bat`
+
+**macOS / Linux:**
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+That's it! The script automatically starts the backend (Docker) and frontend (npm).
+
+---
+
+### Option 2: Full Docker 🐳 (Zero Setup)
+
+> **Requires:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) only — no Node.js or Python needed!
 
 ```bash
 git clone https://github.com/miran786/face_login.git
 cd face_login
-npm install
-```
-
-### 2. Start the Backend
-
-#### Option A: Docker (Recommended) ✅
-
-```bash
-cd backend
 docker compose up --build
 ```
 
-#### Option B: Manual Setup
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
 
+To stop: `Ctrl+C` or `docker compose down`
+
+---
+
+### Option 3: Manual Setup 🔧
+
+#### Backend
 ```bash
 cd backend
 python -m venv venv
@@ -408,21 +427,13 @@ pip install -r requirements.txt
 python main.py
 ```
 
-> Backend runs at `http://localhost:8000`
+> ⚠️ Requires **Python 3.10 or 3.11** (TensorFlow doesn't support 3.12+)
 
-### 3. Start the Frontend
-
+#### Frontend
 ```bash
 # From root directory
+npm install
 npm run dev
-```
-
-> Frontend runs at `http://localhost:5173`
-
-### 4. Build for Production
-
-```bash
-npm run build
 ```
 
 ---
