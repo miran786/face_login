@@ -15,7 +15,7 @@
 ## Phases
 
 ### Phase 1: Environment & Foundation
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: Scaffold the Vite (React) frontend by copying the provided UI, setup the Node.js/Express backend, and configure the database connection. Start defining models.
 **Requirements**: REQ-01, REQ-02, REQ-10
 
