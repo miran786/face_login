@@ -136,9 +136,16 @@ async def register_face(request: RegisterRequest):
         # Determine representation path to clear cache
         # DeepFace creates a .pkl file in the db_path to cache embeddings
         # We should delete it to force re-indexing
-        pkl_path = os.path.join(DB_PATH, f"representations_vgg_face.pkl")
-        if os.path.exists(pkl_path):
-            os.remove(pkl_path)
+        # DeepFace creates a .pkl file in the db_path to cache embeddings
+        # We should delete any .pkl files to force re-indexing
+        for file in os.listdir(DB_PATH):
+            if file.endswith(".pkl"):
+                pkl_path = os.path.join(DB_PATH, file)
+                try:
+                    os.remove(pkl_path)
+                    print(f"Deleted cache file: {pkl_path}")
+                except Exception as e:
+                    print(f"Error deleting {pkl_path}: {e}")
             
         return {"status": "success", "message": f"User {request.email} registered"}
         
