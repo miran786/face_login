@@ -18,6 +18,7 @@ export function FaceAuth({ onAuthSuccess, onRegister, onUsePassword }: FaceAuthP
   const [isScanning, setIsScanning] = useState(false);
   const [authStatus, setAuthStatus] = useState<'idle' | 'scanning' | 'success' | 'failed'>('idle');
   const [cameraError, setCameraError] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
 
   useEffect(() => {
     let stream: MediaStream | null = null;
