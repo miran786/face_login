@@ -102,7 +102,7 @@ export function FaceRegistrationInfo({ faceDescriptor, faceImage, onComplete, on
                   type="text"
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  placeholder="Miran Jamadar"
+                  placeholder="John Doe"
                   className="bg-white/10 border-white/20 text-white placeholder:text-green-300 pl-12 py-6 rounded-2xl"
                   required
                 />
@@ -117,7 +117,7 @@ export function FaceRegistrationInfo({ faceDescriptor, faceImage, onComplete, on
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="miran786mj@gmail.com"
+                  placeholder="john.doe@example.com"
                   className="bg-white/10 border-white/20 text-white placeholder:text-green-300 pl-12 py-6 rounded-2xl"
                   required
                 />
@@ -132,7 +132,7 @@ export function FaceRegistrationInfo({ faceDescriptor, faceImage, onComplete, on
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+91 7744039115"
+                  placeholder="+1 (555) 000-0000"
                   className="bg-white/10 border-white/20 text-white placeholder:text-green-300 pl-12 py-6 rounded-2xl"
                   required
                 />

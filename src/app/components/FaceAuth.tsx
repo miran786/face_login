@@ -421,6 +421,26 @@ export function FaceAuth({ onAuthSuccess, onRegister, onUsePassword }: FaceAuthP
             <UserPlus className="w-4 h-4 mr-2" />
             Create new account
           </Button>
+
+          {/* TESTING BUTTON: Bypass face auth */}
+          <Button
+            variant="outline"
+            onClick={() => {
+              // Create a mock user for testing without the camera
+              const testUser = {
+                id: 'test-user-id',
+                email: 'test@example.com',
+                fullName: 'Test User',
+                phone: '1234567890',
+                faceData: [],
+              };
+              onAuthSuccess(testUser);
+            }}
+            className="border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10 rounded-full px-6 py-2 transition-all mt-4"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Quick Test Login (Bypass Camera)
+          </Button>
         </div>
 
         {/* Reset Option */}
