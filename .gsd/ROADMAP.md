@@ -25,7 +25,7 @@
 **Requirements**: REQ-03, REQ-05, REQ-06
 
 ### Phase 3: WebAuthn Integration (Face ID)
-**Status**: ✅ Complete Started
+**Status**: ✅ Complete
 **Objective**: Add WebAuthn support using `@simplewebauthn` for registering new passkeys (Face ID) and authenticating existing users.
 **Requirements**: REQ-04
 
