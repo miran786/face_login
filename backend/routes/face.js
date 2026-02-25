@@ -21,31 +21,55 @@ const DISTANCE_THRESHOLD = 0.55;
 
 // 1. Register Face Descriptor
 router.post('/register', (req, res) => {
-    const { username, descriptor } = req.body;
+    const { username, descriptor, name, email, phone } = req.body;
 
     if (!username || !descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
         return res.status(400).json({ error: 'Username and a valid 128D face descriptor are required' });
     }
 
     db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
-        if (err || !user) return res.status(404).json({ error: 'User not found' });
+        if (err) {
+            console.error('Database error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
 
-        const descriptorId = crypto.randomUUID();
-        const descriptorJson = JSON.stringify(descriptor);
+        const saveDescriptor = (userId) => {
+            const descriptorId = crypto.randomUUID();
+            const descriptorJson = JSON.stringify(descriptor);
 
-        db.run(
-            `INSERT INTO face_descriptors (id, user_id, descriptor) VALUES (?, ?, ?)`,
-            [descriptorId, user.id, descriptorJson],
-            function (err) {
-                if (err) {
-                    console.error('Error saving descriptor:', err);
-                    return res.status(500).json({ error: 'Failed to save face data' });
+            db.run(
+                `INSERT INTO face_descriptors (id, user_id, descriptor) VALUES (?, ?, ?)`,
+                [descriptorId, userId, descriptorJson],
+                function (err) {
+                    if (err) {
+                        console.error('Error saving descriptor:', err);
+                        return res.status(500).json({ error: 'Failed to save face data' });
+                    }
+                    res.status(201).json({ success: true, message: 'Face data registered securely' });
                 }
-                res.status(201).json({ success: true, message: 'Face data registered securely' });
-            }
-        );
+            );
+        };
+
+        if (user) {
+            saveDescriptor(user.id);
+        } else {
+            // Create user first if registering via face for the first time
+            const userId = crypto.randomUUID();
+            db.run(
+                `INSERT INTO users (id, username, email, phone, name, password_hash) VALUES (?, ?, ?, ?, ?, ?)`,
+                [userId, username, email || null, phone || null, name || username, null],
+                function (err) {
+                    if (err) {
+                        console.error('Error creating user:', err);
+                        return res.status(500).json({ error: 'Failed to create user record' });
+                    }
+                    saveDescriptor(userId);
+                }
+            );
+        }
     });
 });
+
 
 // 2. Login (Authenticate via Face Descriptor)
 router.post('/login', (req, res) => {

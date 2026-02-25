@@ -82,14 +82,28 @@ export function FaceRegistration({ userData, onComplete, onBack }: FaceRegistrat
         throw new Error("Video not ready yet.");
       }
 
-      const detection = await faceapi.detectSingleFace(videoRef.current)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+      // Add retry logic for detection to allow camera stabilization
+      let detection = null;
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      while (!detection && attempts < maxAttempts) {
+        attempts++;
+        detection = await faceapi.detectSingleFace(videoRef.current)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (!detection && attempts < maxAttempts) {
+          // Progress update to show we are still trying
+          setScanProgress(25 + (attempts * 5));
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
 
       setScanProgress(75);
 
       if (!detection) {
-        throw new Error("No face detected! Please position your face clearly in the frame.");
+        throw new Error("No face detected! Please position your face clearly in the frame and ensure good lighting.");
       }
 
       setScanProgress(100);
