@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Scan, CheckCircle2, User } from 'lucide-react';
 import { Button } from './ui/button';
@@ -9,18 +9,48 @@ interface SendMoneyProps {
   onSend: (recipient: string, amount: number) => void;
 }
 
-const recentContacts = [
-  { name: 'Sarah Johnson', avatar: '👩', color: 'from-pink-500 to-rose-500' },
-  { name: 'Alex Martinez', avatar: '👨', color: 'from-blue-500 to-indigo-500' },
-  { name: 'Emma Wilson', avatar: '👩', color: 'from-purple-500 to-violet-500' },
-  { name: 'James Brown', avatar: '👨', color: 'from-green-500 to-emerald-500' },
+interface Contact {
+  name: string;
+  avatar: string;
+  color: string;
+}
+
+const colorVariants = [
+  'from-pink-500 to-rose-500',
+  'from-blue-500 to-indigo-500',
+  'from-purple-500 to-violet-500',
+  'from-green-500 to-emerald-500',
+  'from-orange-500 to-amber-500'
 ];
 
 export function SendMoney({ onBack, onSend }: SendMoneyProps) {
   const [amount, setAmount] = useState('');
   const [selectedContact, setSelectedContact] = useState('');
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  useEffect(() => {
+    const fetchContacts = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/users/contacts', {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const mappedContacts = data.contacts.map((c: any, index: number) => ({
+            name: c.name,
+            avatar: '👤', // Default avatar for now
+            color: colorVariants[index % colorVariants.length] // Cycle through colors
+          }));
+          setContacts(mappedContacts);
+        }
+      } catch (err) {
+        console.error('Failed to fetch contacts:', err);
+      }
+    };
+    fetchContacts();
+  }, []);
 
   const handleAmountChange = (value: string) => {
     const numericValue = value.replace(/[^\d.]/g, '');
@@ -39,15 +69,34 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
 
     setIsProcessing(true);
 
-    // Simulate face ID verification
-    setTimeout(() => {
+    try {
+      // Execute transaction on backend
+      const response = await fetch('http://localhost:5000/api/wallet/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          contactName: selectedContact,
+          amount: parseFloat(amount)
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Transaction failed');
+      }
+
       setIsProcessing(false);
       setIsSuccess(true);
-
       setTimeout(() => {
         onSend(selectedContact, parseFloat(amount));
       }, 1500);
-    }, 2000);
+
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Transaction failed. Check balance.');
+      setIsProcessing(false);
+    }
   };
 
   if (isSuccess) {
@@ -162,7 +211,7 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
         {/* Recipient Selection */}
         <div className="mb-6">
           <h3 className="text-white text-lg mb-4">Send to</h3>
-          
+
           {/* Search */}
           <div className="mb-4">
             <Input
@@ -173,16 +222,16 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
 
           {/* Recent Contacts */}
           <div className="space-y-2">
-            {recentContacts.map((contact) => (
+            {contacts.length === 0 && <p className="text-purple-300 text-sm text-center">No other users found.</p>}
+            {contacts.map((contact) => (
               <motion.button
                 key={contact.name}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setSelectedContact(contact.name)}
-                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
-                  selectedContact === contact.name
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600'
-                    : 'bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20'
-                }`}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${selectedContact === contact.name
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600'
+                  : 'bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20'
+                  }`}
               >
                 <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${contact.color} flex items-center justify-center text-2xl`}>
                   {contact.avatar}

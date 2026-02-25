@@ -20,6 +20,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/register', require('./routes/register'));
 app.use('/api/face', require('./routes/face'));
 app.use('/api/wallet', require('./routes/wallet'));
+app.use('/api/users', require('./routes/user'));
 
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });

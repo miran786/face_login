@@ -49,41 +49,34 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
   const [activeView, setActiveView] = useState<'dashboard' | 'send' | 'receive' | 'history'>('dashboard');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  useEffect(() => {
-    const fetchWalletData = async () => {
-      try {
-        const [balanceRes, historyRes] = await Promise.all([
-          fetch('http://localhost:5000/api/wallet/balance', { credentials: 'include' }),
-          fetch('http://localhost:5000/api/wallet/history', { credentials: 'include' })
-        ]);
+  const fetchWalletData = async () => {
+    try {
+      const [balanceRes, historyRes] = await Promise.all([
+        fetch('http://localhost:5000/api/wallet/balance', { credentials: 'include' }),
+        fetch('http://localhost:5000/api/wallet/history', { credentials: 'include' })
+      ]);
 
-        if (balanceRes.ok && historyRes.ok) {
-          const balanceData = await balanceRes.json();
-          const historyData = await historyRes.json();
-          setBalance(balanceData.balance);
-          setTransactions(historyData.transactions);
-        } else {
-          console.error('Failed to fetch wallet data');
-        }
-      } catch (error) {
-        console.error('Error fetching wallet data:', error);
+      if (balanceRes.ok && historyRes.ok) {
+        const balanceData = await balanceRes.json();
+        const historyData = await historyRes.json();
+        setBalance(balanceData.balance);
+        setTransactions(historyData.transactions);
+      } else {
+        console.error('Failed to fetch wallet data');
       }
-    };
+    } catch (error) {
+      console.error('Error fetching wallet data:', error);
+    }
+  };
 
+  useEffect(() => {
     fetchWalletData();
   }, []);
 
-  const handleSendMoney = (recipient: string, amount: number) => {
-    const newTransaction: Transaction = {
-      id: Date.now().toString(),
-      type: 'sent',
-      amount,
-      recipient,
-      date: new Date().toISOString(),
-      status: 'completed'
-    };
-    setTransactions([newTransaction, ...transactions]);
-    setBalance(balance - amount);
+  const handleSendMoney = async (recipient: string, amount: number) => {
+    // We already committed the transaction to DB in SendMoney.tsx
+    // Simply refetch the live data from the backend to ensure consistency.
+    await fetchWalletData();
     setActiveView('dashboard');
   };
 
