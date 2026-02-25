@@ -20,7 +20,7 @@
 **Requirements**: REQ-01, REQ-02, REQ-10
 
 ### Phase 2: Core Authentication (Fallback)
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: Implement traditional Username/Password sign-up and sign-in along with secure session management (JWT/cookies).
 **Requirements**: REQ-03, REQ-05, REQ-06
 
@@ -30,7 +30,7 @@
 **Requirements**: REQ-04
 
 ### Phase 4: Dashboard & Wallet Features
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: Build a protected dashboard route in React. Develop API endpoints to serve simulated wallet balance and transaction history.
 **Requirements**: REQ-07, REQ-08, REQ-09
 
