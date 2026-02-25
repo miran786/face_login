@@ -3,9 +3,10 @@ import { motion } from 'motion/react';
 import { User, Mail, Phone, Lock, ArrowRight, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { startRegistration } from '@simplewebauthn/browser';
+
 
 interface FaceRegistrationInfoProps {
+  faceDescriptor: number[] | null;
   onComplete: (userData: FaceUserData) => void;
   onBack?: () => void;
 }
@@ -17,7 +18,7 @@ export interface FaceUserData {
   phone: string;
 }
 
-export function FaceRegistrationInfo({ onComplete, onBack }: FaceRegistrationInfoProps) {
+export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: FaceRegistrationInfoProps) {
   const [formData, setFormData] = useState<FaceUserData>({
     fullName: '',
     username: '',
@@ -34,70 +35,33 @@ export function FaceRegistrationInfo({ onComplete, onBack }: FaceRegistrationInf
     setErrorMsg('');
 
     try {
-      // 1. Create User in Backend (Passwordless)
-      const initRes = await fetch('http://localhost:5000/api/register/passkey', {
+      if (!faceDescriptor || faceDescriptor.length !== 128) {
+        throw new Error('Face descriptor is missing or invalid. Please go back and scan your face again.');
+      }
+
+      // Create User and Save Face Descriptor in Backend
+      const registerRes = await fetch('http://localhost:5000/api/face/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: formData.username,
           name: formData.fullName,
           email: formData.email,
-          phone: formData.phone
+          phone: formData.phone,
+          descriptor: faceDescriptor
         })
       });
 
-      if (!initRes.ok) {
-        const d = await initRes.json();
-        throw new Error(d.error || 'Failed to initialize account');
+      if (!registerRes.ok) {
+        const d = await registerRes.json();
+        throw new Error(d.error || 'Failed to register account');
       }
 
-      // 2. Generate Options
-      const optionsRes = await fetch('http://localhost:5000/api/register/generate-options', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: formData.username })
-      });
-
-      if (!optionsRes.ok) {
-        const d = await optionsRes.json();
-        throw new Error(d.error || 'Failed to generate WebAuthn options');
-      }
-
-      const options = await optionsRes.json();
-
-      // 3. Start Registration in Browser
-      let attResp;
-      try {
-        attResp = await startRegistration({ optionsJSON: options });
-      } catch (err: any) {
-        if (err.name === 'NotAllowedError') {
-          setErrorMsg('Passkey creation was cancelled. Please try again or use another method.');
-          setIsRegistering(false);
-          return;
-        }
-        throw new Error('WebAuthn device error');
-      }
-
-      // 4. Verify Registration
-      const verifyRes = await fetch('http://localhost:5000/api/register/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: formData.username,
-          response: attResp
-        })
-      });
-
-      if (!verifyRes.ok) {
-        const d = await verifyRes.json();
-        throw new Error(d.error || 'Failed to verify passkey');
-      }
-
-      const verification = await verifyRes.json();
-      if (verification.verified) {
+      const data = await registerRes.json();
+      if (data.success) {
         onComplete(formData);
       } else {
-        throw new Error('Passkey verification failed');
+        throw new Error('Face registration failed');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'An unexpected error occurred during registration.');

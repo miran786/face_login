@@ -20,6 +20,7 @@ import { TraditionalLogin } from './components/TraditionalLogin';
 function App() {
   const [appState, setAppState] = useState<AppState>('start');
   const [userData, setUserData] = useState<FaceUserData | TraditionalUserData | null>(null);
+  const [capturedDescriptor, setCapturedDescriptor] = useState<number[] | null>(null);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -51,7 +52,8 @@ function App() {
     setAppState('faceRegistration');
   };
 
-  const handleFaceRegistrationComplete = () => {
+  const handleFaceRegistrationComplete = (descriptor: number[]) => {
+    setCapturedDescriptor(descriptor);
     setAppState('faceRegistrationInfo');
   };
 
@@ -117,6 +119,7 @@ function App() {
   if (appState === 'faceRegistrationInfo') {
     return (
       <FaceRegistrationInfo
+        faceDescriptor={capturedDescriptor}
         onComplete={handleFaceRegistrationInfoComplete}
         onBack={handleBackToStart}
       />

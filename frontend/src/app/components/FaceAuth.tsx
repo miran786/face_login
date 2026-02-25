@@ -3,9 +3,7 @@ import { motion } from 'motion/react';
 import { Scan, CheckCircle2, Lock } from 'lucide-react';
 import { Button } from './ui/button';
 
-import { startAuthentication } from '@simplewebauthn/browser';
-
-interface FaceAuthProps {
+import * as faceapi from 'face-api.js'; interface FaceAuthProps {
   onAuthSuccess: (user?: any) => void;
   onFallback?: () => void;
 }
@@ -17,6 +15,24 @@ export function FaceAuth({ onAuthSuccess, onFallback }: FaceAuthProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        await Promise.all([
+          faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+          faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+          faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+        ]);
+        setModelsLoaded(true);
+      } catch (err) {
+        console.error('Failed to load FaceAPI models', err);
+        setErrorMsg('Failed to initialize AI ML models.');
+      }
+    };
+    loadModels();
+  }, []);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -45,41 +61,44 @@ export function FaceAuth({ onAuthSuccess, onFallback }: FaceAuthProps) {
   }, []);
 
   const handleScan = async () => {
+    if (!modelsLoaded || !videoRef.current) return;
     setIsScanning(true);
     setScanProgress(0);
     setErrorMsg('');
 
     try {
-      setScanProgress(20);
-      const optionsRes = await fetch('http://localhost:5000/api/auth/generate-options', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!optionsRes.ok) throw new Error('Failed to get authentication options.');
-      const { options, sessionId } = await optionsRes.json();
-      setScanProgress(40);
+      setScanProgress(25);
 
-      let asseResp;
-      try {
-        asseResp = await startAuthentication({ optionsJSON: options });
-      } catch (err: any) {
-        throw new Error('WebAuthn cancelled or invalid.');
+      // Ensure video is playing and ready
+      if (videoRef.current.videoWidth === 0) {
+        throw new Error("Video not ready yet.");
       }
-      setScanProgress(80);
 
-      const verifyRes = await fetch('http://localhost:5000/api/auth/verify', {
+      const detection = await faceapi.detectSingleFace(videoRef.current)
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      setScanProgress(50);
+
+      if (!detection) {
+        throw new Error("No face detected! Please position your face clearly in the frame.");
+      }
+
+      const descriptorArray = Array.from(detection.descriptor);
+
+      const verifyRes = await fetch('http://localhost:5000/api/face/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, response: asseResp }),
+        body: JSON.stringify({ descriptor: descriptorArray }),
       });
 
       if (!verifyRes.ok) {
         const d = await verifyRes.json();
-        throw new Error(d.error || 'Verification failed on server.');
+        throw new Error(d.error || 'Authentication failed on server.');
       }
 
       const verification = await verifyRes.json();
-      if (verification.verified) {
+      if (verification.success) {
         setScanProgress(100);
         setIsScanning(false);
         setIsAuthenticated(true);
@@ -199,10 +218,11 @@ export function FaceAuth({ onAuthSuccess, onFallback }: FaceAuthProps) {
           {!isScanning && !isAuthenticated && (
             <Button
               onClick={handleScan}
-              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl text-lg"
+              disabled={!modelsLoaded}
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl text-lg disabled:opacity-50"
             >
               <Scan className="mr-2" />
-              Start Face Scan
+              {modelsLoaded ? 'Scan Face ID' : 'Loading ML Models...'}
             </Button>
           )}
 
@@ -232,7 +252,7 @@ export function FaceAuth({ onAuthSuccess, onFallback }: FaceAuthProps) {
         </div>
 
         <p className="text-center text-purple-300 text-sm mt-6">
-          Your biometric data is encrypted and never leaves your device
+          Your biometric face data is processed securely by our AI model
         </p>
       </motion.div>
     </div>

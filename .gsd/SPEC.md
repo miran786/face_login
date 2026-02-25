@@ -21,6 +21,7 @@ Individuals requiring secure, frictionless access to their digital wallet using 
 ## Constraints
 - Must rely on Web API standards (WebAuthn/Passkey) to access native device biometrics safely.
 - Requires HTTPS (Secure Context) for WebAuthn APIs to function properly.
+- Must integrate the provided UI from `D:\GIT\face_login\Face ID Transaction Website` (Vite + React).
 
 ## Success Criteria
 - [ ] Users can successfully register an account providing Name, Username, Password, and set up a Passkey (Face ID/Touch ID).

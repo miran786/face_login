@@ -18,7 +18,7 @@ app.use(cookieParser());
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/register', require('./routes/register'));
-app.use('/api', require('./routes/webauthn'));
+app.use('/api/face', require('./routes/face'));
 app.use('/api/wallet', require('./routes/wallet'));
 
 app.get('/api/health', (req, res) => {
