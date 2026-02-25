@@ -56,8 +56,8 @@ router.post('/register', (req, res) => {
             // Create user first if registering via face for the first time
             const userId = crypto.randomUUID();
             db.run(
-                `INSERT INTO users (id, username, email, phone, name, password_hash) VALUES (?, ?, ?, ?, ?, ?)`,
-                [userId, username, email || null, phone || null, name || username, null],
+                `INSERT INTO users (id, username, email, phone, name, password_hash, balance) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [userId, username, email || null, phone || null, name || username, null, 1000.00],
                 function (err) {
                     if (err) {
                         console.error('Error creating user:', err);

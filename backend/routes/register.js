@@ -20,8 +20,8 @@ router.post('/', async (req, res) => {
         const userId = crypto.randomUUID();
 
         db.run(
-            `INSERT INTO users (id, username, email, phone, name, password_hash) VALUES (?, ?, ?, ?, ?, ?)`,
-            [userId, username, email || null, phone || null, name, passwordHash],
+            `INSERT INTO users (id, username, email, phone, name, password_hash, balance) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, username, email || null, phone || null, name, passwordHash, 1000.00],
             function (err) {
                 if (err) {
                     if (err.message.includes('UNIQUE constraint failed')) {
@@ -85,8 +85,8 @@ router.post('/passkey', (req, res) => {
         const userId = crypto.randomUUID();
 
         db.run(
-            `INSERT INTO users (id, username, email, phone, name, password_hash) VALUES (?, ?, ?, ?, ?, ?)`,
-            [userId, username, email || null, phone || null, name, null],
+            `INSERT INTO users (id, username, email, phone, name, password_hash, balance) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, username, email || null, phone || null, name, null, 1000.00],
             function (err) {
                 if (err) {
                     console.error(err);
