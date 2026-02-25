@@ -1,16 +1,16 @@
 # ROADMAP.md
 
-> **Current Phase**: Not started
+> **Current Phase**: ✅ Complete
 > **Milestone**: v1.0
 
 ## Must-Haves (from SPEC)
-- [ ] Vite (React) front-end structure built using the provided UI template
-- [ ] Express (Node.js) API built and connected to DB
-- [ ] User sign-up flow supporting Username, Name, Password
-- [ ] WebAuthn registration for Face ID passkeys
-- [ ] WebAuthn authentication via Face ID passkeys
-- [ ] Username and password fallback login
-- [ ] Authenticated dashboard displaying simulated wallet balance and history
+- [x] Vite (React) front-end structure built using the provided UI template
+- [x] Express (Node.js) API built and connected to DB
+- [x] User sign-up flow supporting Username, Name, Password
+- [x] WebAuthn registration for Face ID passkeys
+- [x] WebAuthn authentication via Face ID passkeys
+- [x] Username and password fallback login
+- [x] Authenticated dashboard displaying simulated wallet balance and history
 
 ## Phases
 
@@ -35,5 +35,5 @@
 **Requirements**: REQ-07, REQ-08, REQ-09
 
 ### Phase 5: Polish & Final Integration
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: End-to-end testing, refining the UI/UX for seamless fallback between Face ID and password inputs, and ensuring all error edge cases are smoothly handled.
