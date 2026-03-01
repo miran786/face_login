@@ -1,4 +1,4 @@
-# 🔐 FaceWallet
+# FaceWallet
 
 > A next-generation digital wallet secured by real-time AI face recognition — no passwords required.
 
@@ -10,15 +10,15 @@
 
 ---
 
-## ✨ What is FaceWallet?
+## What is FaceWallet?
 
-FaceWallet is a **biometric-first digital wallet** that authenticates users using their face via machine learning, eliminating the need to remember passwords. It combines a sleek React frontend with a secure Node.js backend and a real ML face recognition engine powered by `face-api.js`.
+FaceWallet is a **biometric-first digital wallet** that authenticates users using their face via machine learning, eliminating the need to remember passwords. It combines a sleek React frontend with a Node.js backend and a real ML face recognition engine powered by `face-api.js`.
 
 ---
 
-## 🚀 Features
+## Features
 
-### 🔑 Authentication
+### Authentication
 | Feature | Description |
 |---|---|
 | **Face ID Registration** | Capture and store a 128-dimensional face descriptor using your webcam |
@@ -28,56 +28,72 @@ FaceWallet is a **biometric-first digital wallet** that authenticates users usin
 | **Session Persistence** | Automatically restores your session via HttpOnly cookie |
 | **Secure Logout** | Clears server-side JWT cookie |
 
-### 💸 Wallet
+### Wallet
 | Feature | Description |
 |---|---|
-| **Balance Dashboard** | View your current wallet balance with a toggle to hide/show |
-| **Send Money** | Transfer funds to other users |
-| **Receive Money** | Generate a QR code to receive payments |
+| **Balance Dashboard** | View your current wallet balance with loading state and toggle to hide/show |
+| **Send Money** | Transfer funds to other users with amount validation (2 decimal places) |
+| **Receive Money** | Share a wallet address or QR code to receive payments |
 | **Transaction History** | Browse your full list of sent and received transactions |
+
+### Robustness
+| Feature | Description |
+|---|---|
+| **Graceful Shutdown** | Server handles SIGTERM/SIGINT and closes DB connections cleanly |
+| **DB Init Safety** | Server waits for database schema initialization before accepting requests |
+| **Atomic Transfers** | Money transfers use atomic SQL updates to prevent double-spend race conditions |
+| **Busy Timeout** | SQLite configured with 3s busy timeout to handle concurrent access |
+| **Fetch Abort on Unmount** | Dashboard cancels in-flight requests when component unmounts |
+| **Timer Cleanup** | All setTimeout calls are cleaned up on component unmount to prevent memory leaks |
+| **Configurable API URL** | Backend URL extracted to `VITE_API_URL` env var (defaults to `localhost:5000`) |
+| **Input Validation** | Face descriptors validated for finite numbers; transfer amounts sanitized |
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 face_login/
-├── frontend/          # React + Vite + Tailwind CSS
+├── frontend/              # React + Vite + Tailwind CSS
 │   └── src/
 │       └── app/
-│           ├── App.tsx                  # App state machine (routing)
-│           ├── components/
-│           │   ├── FaceAuth.tsx         # Face ID login flow
-│           │   ├── FaceRegistration.tsx # Webcam face capture
-│           │   ├── FaceRegistrationInfo.tsx # User info form (face)
-│           │   ├── TraditionalLogin.tsx
-│           │   ├── TraditionalRegistration.tsx
-│           │   ├── Dashboard.tsx        # Wallet dashboard
-│           │   ├── SendMoney.tsx
-│           │   ├── ReceiveMoney.tsx
-│           │   └── TransactionHistory.tsx
-│           └── ...
+│           ├── config.ts              # API_BASE URL configuration
+│           ├── App.tsx                # App state machine (routing)
+│           └── components/
+│               ├── FaceAuth.tsx       # Face ID login flow
+│               ├── FaceRegistration.tsx # Webcam face capture
+│               ├── FaceRegistrationInfo.tsx # User info form (face)
+│               ├── TraditionalLogin.tsx
+│               ├── TraditionalRegistration.tsx
+│               ├── Dashboard.tsx      # Wallet dashboard
+│               ├── SendMoney.tsx
+│               ├── ReceiveMoney.tsx
+│               └── TransactionHistory.tsx
 │
-└── backend/           # Node.js + Express
-    ├── server.js       # Entry point with CORS & cookie config
+└── backend/               # Node.js + Express
+    ├── server.js           # Entry point with graceful shutdown
     ├── routes/
-    │   ├── auth.js     # /api/auth — login, logout, /me
-    │   ├── register.js # /api/register — user creation
-    │   ├── face.js     # /api/face — face register + login
-    │   └── wallet.js   # /api/wallet — balance + history + transfer
+    │   ├── auth.js         # /api/auth — login, logout, /me
+    │   ├── register.js     # /api/register — user creation
+    │   ├── face.js         # /api/face — face register + login
+    │   ├── wallet.js       # /api/wallet — balance + history + transfer
+    │   └── user.js         # /api/users — contacts list
+    ├── middleware/
+    │   └── auth.js         # JWT authentication middleware
     ├── db/
-    │   ├── index.js    # SQLite connection
-    │   └── schema.sql  # users + face_descriptors tables
+    │   ├── index.js        # SQLite connection with busyTimeout + init promise
+    │   └── schema.sql      # users + face_descriptors + transactions tables
+    ├── scripts/
+    │   └── seed_mock_users.js # Seed test users for development
     ├── Dockerfile
     └── docker-compose.yml
 ```
 
 ---
 
-## 📊 System Diagrams
+## System Diagrams
 
 ### 1. Data Flow Diagram (DFD)
-Visualizes how face descriptors flow from the user's camera to the secure database.
 
 ```mermaid
 graph LR
@@ -97,7 +113,6 @@ graph LR
 ```
 
 ### 2. Face ID Authentication Sequence
-The step-by-step handshake between the client and server during a login attempt.
 
 ```mermaid
 sequenceDiagram
@@ -124,7 +139,6 @@ sequenceDiagram
 ```
 
 ### 3. Entity Relationship Diagram (ERD)
-The database structure securing user identities and biometric signatures.
 
 ```mermaid
 erDiagram
@@ -135,6 +149,7 @@ erDiagram
         text phone
         text name
         text password_hash
+        decimal balance "Default: 1000"
         datetime created_at
     }
     FACE_DESCRIPTORS {
@@ -143,23 +158,32 @@ erDiagram
         json descriptor "128D Vector"
         datetime created_at
     }
+    TRANSACTIONS {
+        text id PK
+        text sender_id FK
+        text recipient_id FK
+        decimal amount
+        datetime created_at
+    }
     USERS ||--o| FACE_DESCRIPTORS : "has biometric"
+    USERS ||--o{ TRANSACTIONS : "sends"
+    USERS ||--o{ TRANSACTIONS : "receives"
 ```
 
 ---
 
-## 🧠 How Face Recognition Works
+## How Face Recognition Works
 
-1. **Registration**: The browser uses `face-api.js` to detect your face via webcam and computes a **128-dimensional face descriptor** (a floating-point vector unique to your face).
+1. **Registration**: The browser uses `face-api.js` to detect your face via webcam and computes a **128-dimensional face descriptor** (a floating-point vector unique to your face). Each value is validated to be a finite number.
 2. **Storage**: The descriptor is sent to the backend and stored in the `face_descriptors` table linked to your user account.
 3. **Login**: During authentication, a new descriptor is captured and compared against all stored descriptors using **Euclidean distance**.
-4. **Match decision**: If the closest match has a distance ≤ `0.55` (configurable threshold), login succeeds and a JWT is issued.
+4. **Match decision**: If the closest match has a distance <= `0.55` (configurable threshold), login succeeds and a JWT is issued.
 
 > The SSD MobileNet v1 + FaceLandmark68Net + FaceRecognitionNet models are loaded from the `/models` directory in the frontend's public folder.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend
 | Tech | Purpose |
@@ -183,10 +207,10 @@ erDiagram
 
 ---
 
-## ⚙️ Local Setup
+## Local Setup
 
 ### Prerequisites
-- **Node.js** ≥ 20
+- **Node.js** >= 20
 - **npm** or **pnpm**
 - A webcam (for face registration/login)
 
@@ -207,12 +231,27 @@ cp .env.example .env
 # Install dependencies
 npm install
 
-# Start the server
+# Start the server (waits for DB init, then listens)
 node server.js
 # Server runs on http://localhost:5000
 ```
 
-### 3. Set up the Frontend
+### 3. Seed Mock Users (optional)
+```bash
+cd backend
+node scripts/seed_mock_users.js
+```
+
+This creates 4 test users you can send money to:
+
+| Name | Username | Balance |
+|---|---|---|
+| Sarah Wilson | sarah_w | 1000 |
+| James Chen | james_c | 1000 |
+| Elena Rodriguez | elena_r | 1000 |
+| Marcus Thorne | marcus_t | 1000 |
+
+### 4. Set up the Frontend
 ```bash
 cd frontend
 
@@ -226,7 +265,7 @@ npm run dev
 
 ---
 
-## 🐳 Docker (Backend)
+## Docker (Backend)
 
 Run the backend fully containerized with a single command:
 
@@ -242,7 +281,7 @@ This will:
 
 ---
 
-## 🔌 API Reference
+## API Reference
 
 ### Auth — `/api/auth`
 | Method | Endpoint | Description |
@@ -265,13 +304,18 @@ This will:
 ### Wallet — `/api/wallet`
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/balance` | Get current balance |
-| `GET` | `/history` | Get transaction history |
-| `POST` | `/send` | Send money to another user |
+| `GET` | `/balance` | Get current balance (requires auth) |
+| `GET` | `/history` | Get transaction history (requires auth) |
+| `POST` | `/transfer` | Send money to another user (requires auth) |
+
+### Users — `/api/users`
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/contacts` | Get list of other users for transfers (requires auth) |
 
 ---
 
-## 🗄️ Database Schema
+## Database Schema
 
 ```sql
 CREATE TABLE users (
@@ -281,6 +325,7 @@ CREATE TABLE users (
   phone         TEXT,
   name          TEXT NOT NULL,
   password_hash TEXT,
+  balance       DECIMAL DEFAULT 1000.00,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -290,21 +335,31 @@ CREATE TABLE face_descriptors (
   descriptor  JSON NOT NULL,   -- 128-element float array
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE transactions (
+  id            TEXT PRIMARY KEY,
+  sender_id     TEXT NOT NULL REFERENCES users(id),
+  recipient_id  TEXT NOT NULL REFERENCES users(id),
+  amount        DECIMAL NOT NULL,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ---
 
-## 🔒 Security Notes
+## Security Notes
 
 - Passwords are hashed with **bcrypt** — never stored in plain text.
+- Face-only users have `null` password_hash — bcrypt is safely skipped for them.
 - Session tokens are stored in **HttpOnly cookies** — not accessible from JavaScript.
 - Face descriptors are mathematical vectors; the original image is never stored.
 - JWT tokens expire after **24 hours**.
 - The `DISTANCE_THRESHOLD` of `0.55` offers a tight match for liveness accuracy (typical `face-api.js` default is 0.6).
+- Money transfers use atomic SQL operations to prevent race conditions and double-spending.
 
 ---
 
-## 📁 Environment Variables
+## Environment Variables
 
 ### `backend/.env`
 ```env
@@ -314,8 +369,13 @@ FRONTEND_URL=http://localhost:5173
 NODE_ENV=development
 ```
 
+### `frontend/.env` (optional)
+```env
+VITE_API_URL=http://localhost:5000
+```
+
 ---
 
-## 📜 License
+## License
 
 This project is open source and available under the [MIT License](LICENSE).

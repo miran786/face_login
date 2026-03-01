@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { API_BASE } from '../config';
 import { motion } from 'motion/react';
 import { Scan, CheckCircle2, Lock } from 'lucide-react';
 import { Button } from './ui/button';
@@ -10,6 +11,7 @@ import * as faceapi from 'face-api.js'; interface FaceAuthProps {
 
 export function FaceAuth({ onAuthSuccess, onFallback }: FaceAuthProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -60,6 +62,12 @@ export function FaceAuth({ onAuthSuccess, onFallback }: FaceAuthProps) {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   const handleScan = async () => {
     if (!modelsLoaded || !videoRef.current) return;
     setIsScanning(true);
@@ -77,7 +85,8 @@ export function FaceAuth({ onAuthSuccess, onFallback }: FaceAuthProps) {
       // Add retry logic for detection to allow camera stabilization
       let detection = null;
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 20; // Reduced from 50 for better performance
+      const delayMs = 150; // Slightly faster retry
 
       while (!detection && attempts < maxAttempts) {
         attempts++;
@@ -87,21 +96,21 @@ export function FaceAuth({ onAuthSuccess, onFallback }: FaceAuthProps) {
 
         if (!detection && attempts < maxAttempts) {
           // Progress update to show we are still trying
-          setScanProgress(25 + (attempts * 5));
-          await new Promise(resolve => setTimeout(resolve, 200));
+          setScanProgress(25 + (attempts * 2.5));
+          await new Promise(resolve => setTimeout(resolve, delayMs));
         }
       }
 
       setScanProgress(75);
 
       if (!detection) {
-        throw new Error("No face detected! Please position your face clearly in the frame and ensure good lighting.");
+        throw new Error("No face detected. Please ensure good lighting, look directly at the camera, and ensure your full face is visible.");
       }
 
 
       const descriptorArray = Array.from(detection.descriptor);
 
-      const verifyRes = await fetch('http://localhost:5000/api/face/login', {
+      const verifyRes = await fetch(`${API_BASE}/api/face/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ descriptor: descriptorArray }),
@@ -117,7 +126,7 @@ export function FaceAuth({ onAuthSuccess, onFallback }: FaceAuthProps) {
         setScanProgress(100);
         setIsScanning(false);
         setIsAuthenticated(true);
-        setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
           onAuthSuccess(verification.user);
         }, 1000);
       } else {

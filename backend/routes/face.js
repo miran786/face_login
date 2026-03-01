@@ -16,14 +16,19 @@ const euclideanDistance = (desc1, desc2) => {
     return Math.sqrt(sum);
 };
 
-// Euclidean distance threshold for a face match (0.6 is typical for face-api.js)
+// Euclidean distance threshold for a face match (0.55 for tight matching)
+// Typical range: 0.55-0.6 for secure authentication
 const DISTANCE_THRESHOLD = 0.55;
+
+// Validate that a descriptor is a 128-element array of finite numbers
+const isValidDescriptor = (d) =>
+    Array.isArray(d) && d.length === 128 && d.every(v => Number.isFinite(v));
 
 // 1. Register Face Descriptor
 router.post('/register', (req, res) => {
     const { username, descriptor, name, email, phone } = req.body;
 
-    if (!username || !descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
+    if (!username || !descriptor || !isValidDescriptor(descriptor)) {
         return res.status(400).json({ error: 'Username and a valid 128D face descriptor are required' });
     }
 
@@ -51,22 +56,22 @@ router.post('/register', (req, res) => {
         };
 
         if (user) {
-            saveDescriptor(user.id);
-        } else {
-            // Create user first if registering via face for the first time
-            const userId = crypto.randomUUID();
-            db.run(
-                `INSERT INTO users (id, username, email, phone, name, password_hash, balance) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [userId, username, email || null, phone || null, name || username, null, 1000.00],
-                function (err) {
-                    if (err) {
-                        console.error('Error creating user:', err);
-                        return res.status(500).json({ error: 'Failed to create user record' });
-                    }
-                    saveDescriptor(userId);
-                }
-            );
+            return res.status(409).json({ error: 'Username already exists' });
         }
+
+        // Create user first if registering via face for the first time
+        const userId = crypto.randomUUID();
+        db.run(
+            `INSERT INTO users (id, username, email, phone, name, password_hash, balance) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, username, email || null, phone || null, name || username, null, 1000.00],
+            function (err) {
+                if (err) {
+                    console.error('Error creating user:', err);
+                    return res.status(500).json({ error: 'Failed to create user record' });
+                }
+                saveDescriptor(userId);
+            }
+        );
     });
 });
 
@@ -75,7 +80,7 @@ router.post('/register', (req, res) => {
 router.post('/login', (req, res) => {
     const { descriptor } = req.body;
 
-    if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
+    if (!descriptor || !isValidDescriptor(descriptor)) {
         return res.status(400).json({ error: 'Valid 128D face descriptor is required' });
     }
 
@@ -110,7 +115,7 @@ router.post('/login', (req, res) => {
 
         // Determine if the best match is within the acceptable threshold
         if (bestMatch && minDistance <= DISTANCE_THRESHOLD) {
-            console.log(`Face match successful for ${bestMatch.username} with distance ${minDistance}`);
+            // Match found within threshold
 
             // Generate JWT
             const token = jwt.sign({ id: bestMatch.user_id, username: bestMatch.username }, JWT_SECRET, { expiresIn: '24h' });
@@ -129,7 +134,6 @@ router.post('/login', (req, res) => {
                 user: { id: bestMatch.user_id, username: bestMatch.username, name: bestMatch.name, email: bestMatch.email }
             });
         } else {
-            console.warn(`Face match failed. Best distance: ${minDistance}`);
             res.status(401).json({ error: 'Face not recognized' });
         }
     });

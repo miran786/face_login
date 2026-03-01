@@ -35,5 +35,9 @@ db.serialize(() => {
             console.log('\nFinal User List:');
             console.table(rows);
         }
+
+        db.close(() => {
+            console.log('Database connection closed. Seeding complete.');
+        });
     });
 });

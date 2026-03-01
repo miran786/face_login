@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_BASE } from '../config';
 import { motion } from 'motion/react';
 import { Lock, Mail, User, Phone, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { Button } from './ui/button';
@@ -38,7 +39,7 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
       setStep(2);
     } else if (step === 2 && formData.phone && formData.password && formData.password === confirmPassword) {
       try {
-        const response = await fetch('http://localhost:5000/api/register', {
+        const response = await fetch(`${API_BASE}/api/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

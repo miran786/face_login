@@ -16,7 +16,6 @@ router.get('/contacts', authenticateJWT, (req, res) => {
                 console.error('Error fetching contacts:', err);
                 return res.status(500).json({ error: 'Database error fetching contacts' });
             }
-            console.log(`Found ${rows.length} contacts for user ${currentUserId}`);
             res.json({ contacts: rows });
         }
     );

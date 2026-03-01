@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE } from '../config';
 import { motion } from 'motion/react';
 import {
   ArrowUpRight,
@@ -8,9 +9,7 @@ import {
   TrendingUp,
   Eye,
   EyeOff,
-  Menu,
-  Bell,
-  User
+  LogOut
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { SendMoney } from './SendMoney';
@@ -34,7 +33,7 @@ interface DashboardProps {
 export function Dashboard({ userName, onLogout }: DashboardProps) {
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:5000/api/auth/logout', {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include'
       });
@@ -48,12 +47,15 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
   const [showBalance, setShowBalance] = useState(true);
   const [activeView, setActiveView] = useState<'dashboard' | 'send' | 'receive' | 'history'>('dashboard');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
 
-  const fetchWalletData = async () => {
+  const fetchWalletData = async (signal?: AbortSignal) => {
     try {
+      setFetchError('');
       const [balanceRes, historyRes] = await Promise.all([
-        fetch('http://localhost:5000/api/wallet/balance', { credentials: 'include' }),
-        fetch('http://localhost:5000/api/wallet/history', { credentials: 'include' })
+        fetch(`${API_BASE}/api/wallet/balance`, { credentials: 'include', signal }),
+        fetch(`${API_BASE}/api/wallet/history`, { credentials: 'include', signal })
       ]);
 
       if (balanceRes.ok && historyRes.ok) {
@@ -62,15 +64,22 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
         setBalance(balanceData.balance);
         setTransactions(historyData.transactions);
       } else {
-        console.error('Failed to fetch wallet data');
+        setFetchError('Failed to load wallet data.');
       }
     } catch (error) {
-      console.error('Error fetching wallet data:', error);
+      if ((error as Error).name !== 'AbortError') {
+        console.error('Error fetching wallet data:', error);
+        setFetchError('Could not connect to server.');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchWalletData();
+    const controller = new AbortController();
+    fetchWalletData(controller.signal);
+    return () => controller.abort();
   }, []);
 
   const handleSendMoney = async (recipient: string, amount: number) => {
@@ -97,27 +106,16 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
       {/* Header */}
       <div className="px-6 pt-8 pb-4">
         <div className="flex items-center justify-between mb-8">
-          <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
-            <Menu />
-          </Button>
           <h1 className="text-xl text-white">Hello, {userName ? userName.split(' ')[0] : 'User'}</h1>
-          <div className="flex gap-2">
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
-              <Bell />
-            </Button>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
-              <User />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              className="text-white hover:bg-white/10"
-              title="Logout"
-            >
-              <ArrowUpRight className="w-5 h-5 rotate-45" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            className="text-white hover:bg-white/10"
+            title="Logout"
+          >
+            <LogOut className="w-5 h-5" />
+          </Button>
         </div>
 
         {/* Balance Card */}
@@ -130,13 +128,17 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
             <div>
               <p className="text-purple-100 text-sm mb-2">Total Balance</p>
               <div className="flex items-center gap-3">
-                {showBalance ? (
+                {isLoading ? (
+                  <h2 className="text-4xl text-white/50">Loading...</h2>
+                ) : fetchError ? (
+                  <h2 className="text-2xl text-red-300">{fetchError}</h2>
+                ) : showBalance ? (
                   <motion.h2
                     initial={{ scale: 0.8 }}
                     animate={{ scale: 1 }}
                     className="text-4xl text-white"
                   >
-                    ${balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </motion.h2>
                 ) : (
                   <h2 className="text-4xl text-white">••••••</h2>
@@ -158,7 +160,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
 
           <div className="flex items-center gap-2 text-green-300">
             <TrendingUp className="w-4 h-4" />
-            <span className="text-sm">+12.5% this month</span>
+            <span className="text-sm">FaceWallet</span>
           </div>
         </motion.div>
 
@@ -253,8 +255,8 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
               <div className="text-right">
                 <p className={`font-semibold ${transaction.type === 'received' ? 'text-green-600' : 'text-red-600'
                   }`}>
-                  {transaction.type === 'received' ? '+' : '-'}$
-                  {transaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {transaction.type === 'received' ? '+' : '-'}₹
+                  {transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
                 <p className="text-xs text-gray-500 capitalize">{transaction.status}</p>
               </div>

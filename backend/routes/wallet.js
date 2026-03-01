@@ -12,7 +12,10 @@ router.get('/balance', authenticateJWT, (req, res) => {
             console.error('Error fetching balance:', err);
             return res.status(500).json({ error: 'Database error fetching balance.' });
         }
-        res.json({ balance: row ? row.balance : 0 });
+        if (!row) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        res.json({ balance: row.balance });
     });
 });
 
@@ -55,76 +58,72 @@ router.get('/history', authenticateJWT, (req, res) => {
 });
 
 // POST /api/wallet/transfer
-router.post('/transfer', authenticateJWT, (req, res) => {
+router.post('/transfer', authenticateJWT, async (req, res) => {
     const senderId = req.user.id;
     const { contactName, amount } = req.body; // Using contactName from SendMoney UI
 
-    if (!contactName || !amount || amount <= 0) {
+    if (!contactName || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
         return res.status(400).json({ error: 'Invalid recipient or amount.' });
     }
 
-    // Begin transaction flow
-    db.serialize(() => {
-        db.run('BEGIN TRANSACTION', (err) => {
-            if (err) return res.status(500).json({ error: 'Database error.' });
+    // Round to 2 decimal places to prevent fractional precision issues
+    const sanitizedAmount = Math.round(amount * 100) / 100;
+    if (sanitizedAmount <= 0) {
+        return res.status(400).json({ error: 'Amount must be greater than zero.' });
+    }
 
-            // Find recipient user by name (assuming name is unique enough for this demo otherwise we would use exact username or id)
-            db.get('SELECT id FROM users WHERE name = ? COLLATE NOCASE', [contactName], (err, recipientRow) => {
-                if (err || !recipientRow) {
-                    db.run('ROLLBACK');
-                    return res.status(400).json({ error: 'Recipient not found.' });
-                }
-                const recipientId = recipientRow.id;
-
-                if (senderId === recipientId) {
-                    db.run('ROLLBACK');
-                    return res.status(400).json({ error: 'Cannot send money to yourself.' });
-                }
-
-                // Check sender balance
-                db.get('SELECT balance FROM users WHERE id = ?', [senderId], (err, senderRow) => {
-                    if (err || !senderRow || senderRow.balance < amount) {
-                        db.run('ROLLBACK');
-                        return res.status(400).json({ error: 'Insufficient funds.' });
-                    }
-
-                    // Deduct from sender
-                    db.run('UPDATE users SET balance = balance - ? WHERE id = ?', [amount, senderId], (err) => {
-                        if (err) {
-                            db.run('ROLLBACK');
-                            return res.status(500).json({ error: 'Failed to update sender balance.' });
-                        }
-
-                        // Add to recipient
-                        db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [amount, recipientId], (err) => {
-                            if (err) {
-                                db.run('ROLLBACK');
-                                return res.status(500).json({ error: 'Failed to update recipient balance.' });
-                            }
-
-                            // Log transaction
-                            const transactionId = crypto.randomUUID();
-                            db.run('INSERT INTO transactions (id, sender_id, recipient_id, amount) VALUES (?, ?, ?, ?)',
-                                [transactionId, senderId, recipientId, amount], (err) => {
-                                    if (err) {
-                                        db.run('ROLLBACK');
-                                        return res.status(500).json({ error: 'Failed to log transaction.' });
-                                    }
-
-                                    db.run('COMMIT', (err) => {
-                                        if (err) {
-                                            db.run('ROLLBACK');
-                                            return res.status(500).json({ error: 'Failed to commit transaction.' });
-                                        }
-                                        res.json({ success: true, transactionId });
-                                    });
-                                });
-                        });
-                    });
-                });
-            });
+    const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
+        db.run(sql, params, function (err) {
+            if (err) reject(err);
+            else resolve(this);
         });
     });
+
+    const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
+        db.get(sql, params, (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+        });
+    });
+
+    try {
+        await dbRun('BEGIN TRANSACTION');
+
+        const recipientRow = await dbGet('SELECT id FROM users WHERE name = ? COLLATE NOCASE', [contactName]);
+        if (!recipientRow) {
+            await dbRun('ROLLBACK');
+            return res.status(400).json({ error: 'Recipient not found.' });
+        }
+        const recipientId = recipientRow.id;
+
+        if (senderId === recipientId) {
+            await dbRun('ROLLBACK');
+            return res.status(400).json({ error: 'Cannot send money to yourself.' });
+        }
+
+        // Atomic deduction: only succeeds if balance is sufficient (prevents race condition)
+        const deductResult = await dbRun(
+            'UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?',
+            [sanitizedAmount, senderId, sanitizedAmount]
+        );
+        if (deductResult.changes === 0) {
+            await dbRun('ROLLBACK');
+            return res.status(400).json({ error: 'Insufficient funds.' });
+        }
+
+        await dbRun('UPDATE users SET balance = balance + ? WHERE id = ?', [sanitizedAmount, recipientId]);
+
+        const transactionId = crypto.randomUUID();
+        await dbRun('INSERT INTO transactions (id, sender_id, recipient_id, amount) VALUES (?, ?, ?, ?)', [transactionId, senderId, recipientId, sanitizedAmount]);
+
+        await dbRun('COMMIT');
+        res.json({ success: true, transactionId });
+    } catch (error) {
+        console.error('Transfer transaction error:', error);
+        // Attempt to rollback on error, ignore if rollback also fails
+        await dbRun('ROLLBACK').catch(e => console.error('Rollback failed:', e));
+        res.status(500).json({ error: 'Internal server error during transfer.' });
+    }
 });
 
 module.exports = router;

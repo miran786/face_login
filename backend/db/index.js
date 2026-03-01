@@ -5,19 +5,23 @@ const fs = require('fs');
 const dbPath = path.resolve(__dirname, 'database.sqlite');
 const db = new sqlite3.Database(dbPath);
 
-const initDb = () => {
-    const schemaPath = path.resolve(__dirname, 'schema.sql');
-    const schema = fs.readFileSync(schemaPath, 'utf8');
+// Prevent SQLITE_BUSY errors under concurrent access
+db.configure('busyTimeout', 3000);
 
+const schemaPath = path.resolve(__dirname, 'schema.sql');
+const schema = fs.readFileSync(schemaPath, 'utf8');
+
+const initPromise = new Promise((resolve, reject) => {
     db.exec(schema, (err) => {
         if (err) {
             console.error('Error initializing database:', err.message);
+            reject(err);
         } else {
             console.log('Database initialized successfully.');
+            resolve();
         }
     });
-};
-
-initDb();
+});
 
 module.exports = db;
+module.exports.initPromise = initPromise;

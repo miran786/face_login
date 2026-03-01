@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Copy, Share2, CheckCircle } from 'lucide-react';
 import { Button } from './ui/button';
@@ -10,11 +10,23 @@ interface ReceiveMoneyProps {
 export function ReceiveMoney({ onBack }: ReceiveMoneyProps) {
   const [copied, setCopied] = useState(false);
   const walletAddress = 'FW-7X9K-M4P2-8QN5-WALLET';
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(walletAddress);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(walletAddress);
+      setCopied(true);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      alert('Failed to copy. Please copy manually.');
+    }
   };
 
   return (
@@ -60,11 +72,11 @@ export function ReceiveMoney({ onBack }: ReceiveMoneyProps) {
               <rect x="10" y="150" width="40" height="40" fill="black" />
               <rect x="20" y="160" width="20" height="20" fill="white" />
               
-              {/* Random pattern blocks */}
-              {[...Array(20)].map((_, i) => {
+              {/* QR-like data pattern (deterministic) */}
+              {[1,1,0,1,0,1,1,0, 0,1,1,0,1,0,0,1, 1,0,1,1].map((visible, i) => {
                 const x = 60 + (i % 8) * 15;
                 const y = 60 + Math.floor(i / 8) * 15;
-                return (
+                return visible ? (
                   <rect
                     key={i}
                     x={x}
@@ -72,9 +84,8 @@ export function ReceiveMoney({ onBack }: ReceiveMoneyProps) {
                     width="10"
                     height="10"
                     fill="black"
-                    opacity={Math.random() > 0.4 ? 1 : 0}
                   />
-                );
+                ) : null;
               })}
             </svg>
           </motion.div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE } from './config';
 import { FaceAuth } from './components/FaceAuth';
 import { Dashboard } from './components/Dashboard';
 import { RegistrationStart } from './components/RegistrationStart';
@@ -25,7 +26,7 @@ function App() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/auth/me', {
+        const response = await fetch(`${API_BASE}/api/auth/me`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include'

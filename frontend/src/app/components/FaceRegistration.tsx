@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Scan, CheckCircle2, AlertCircle, RotateCcw, ArrowLeft } from 'lucide-react';
+import { Scan, CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { UserData } from './Registration';
 
@@ -16,6 +16,7 @@ type ScanStage = 'center' | 'left' | 'right' | 'up' | 'down' | 'complete';
 
 export function FaceRegistration({ userData, onComplete, onBack }: FaceRegistrationProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanStage, setScanStage] = useState<ScanStage>('center');
   const [scanProgress, setScanProgress] = useState(0);
@@ -66,7 +67,11 @@ export function FaceRegistration({ userData, onComplete, onBack }: FaceRegistrat
     };
   }, []);
 
-  const stages: ScanStage[] = ['center', 'left', 'right', 'up', 'down'];
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const handleStartScan = async () => {
     if (!modelsLoaded || !videoRef.current) return;
@@ -85,7 +90,8 @@ export function FaceRegistration({ userData, onComplete, onBack }: FaceRegistrat
       // Add retry logic for detection to allow camera stabilization
       let detection = null;
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 20; // Reduced from 50 for better performance
+      const delayMs = 150; // Slightly faster retry
 
       while (!detection && attempts < maxAttempts) {
         attempts++;
@@ -95,15 +101,15 @@ export function FaceRegistration({ userData, onComplete, onBack }: FaceRegistrat
 
         if (!detection && attempts < maxAttempts) {
           // Progress update to show we are still trying
-          setScanProgress(25 + (attempts * 5));
-          await new Promise(resolve => setTimeout(resolve, 200));
+          setScanProgress(25 + (attempts * 2.5));
+          await new Promise(resolve => setTimeout(resolve, delayMs));
         }
       }
 
       setScanProgress(75);
 
       if (!detection) {
-        throw new Error("No face detected! Please position your face clearly in the frame and ensure good lighting.");
+        throw new Error("No face detected. Please ensure good lighting, look directly at the camera, and ensure your full face is visible.");
       }
 
       setScanProgress(100);
@@ -112,7 +118,7 @@ export function FaceRegistration({ userData, onComplete, onBack }: FaceRegistrat
       // Convert Float32Array to standard array
       const descriptorArray = Array.from(detection.descriptor);
 
-      setTimeout(() => {
+      timeoutRef.current = setTimeout(() => {
         onComplete(descriptorArray);
       }, 1500);
 

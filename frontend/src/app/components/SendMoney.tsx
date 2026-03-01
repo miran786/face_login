@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { API_BASE } from '../config';
 import { motion } from 'motion/react';
 import { ArrowLeft, Scan, CheckCircle2, User } from 'lucide-react';
 import { Button } from './ui/button';
@@ -29,11 +30,18 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/users/contacts', {
+        const response = await fetch(`${API_BASE}/api/users/contacts`, {
           credentials: 'include'
         });
         if (response.ok) {
@@ -54,8 +62,10 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
 
   const handleAmountChange = (value: string) => {
     const numericValue = value.replace(/[^\d.]/g, '');
-    if (numericValue.split('.').length <= 2) {
-      setAmount(numericValue);
+    // Allow at most one dot and 2 decimal places
+    const match = numericValue.match(/^\d*\.?\d{0,2}/);
+    if (match) {
+      setAmount(match[0]);
     }
   };
 
@@ -71,7 +81,7 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
 
     try {
       // Execute transaction on backend
-      const response = await fetch('http://localhost:5000/api/wallet/transfer', {
+      const response = await fetch(`${API_BASE}/api/wallet/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -88,7 +98,7 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
 
       setIsProcessing(false);
       setIsSuccess(true);
-      setTimeout(() => {
+      timeoutRef.current = setTimeout(() => {
         onSend(selectedContact, parseFloat(amount));
       }, 1500);
 
@@ -117,7 +127,7 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
           </motion.div>
           <h2 className="text-3xl text-white mb-2">Transaction Successful!</h2>
           <p className="text-green-300">
-            ${parseFloat(amount).toFixed(2)} sent to {selectedContact}
+            ₹{parseFloat(amount).toFixed(2)} sent to {selectedContact}
           </p>
         </motion.div>
       </div>
@@ -182,28 +192,28 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
           className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 mb-6"
         >
           <p className="text-purple-300 text-sm mb-2 text-center">Amount</p>
-          <div className="flex items-center justify-center mb-6">
-            <span className="text-white text-6xl">$</span>
+          <div className="flex items-center justify-center mb-6 relative">
+            <span className="text-white text-6xl absolute left-[20%] lg:left-[30%] -translate-x-1/2 select-none pointer-events-none">₹</span>
             <input
               type="text"
               value={amount}
               onChange={(e) => handleAmountChange(e.target.value)}
               placeholder="0"
-              className="bg-transparent text-white text-6xl w-full text-center outline-none"
+              className="bg-transparent text-white placeholder:text-white/50 text-6xl w-full text-center outline-none border-none focus:ring-0"
               autoFocus
             />
           </div>
 
           <div className="grid grid-cols-4 gap-2">
             {[50, 100, 200, 500].map((value) => (
-              <Button
+              <button
                 key={value}
+                type="button"
                 onClick={() => addToAmount(value)}
-                variant="outline"
-                className="border-white/20 text-white hover:bg-white/20"
+                className="bg-transparent border border-white/20 text-white font-medium rounded-xl py-3 hover:bg-white/20 transition-colors"
               >
-                +${value}
-              </Button>
+                +₹{value}
+              </button>
             ))}
           </div>
         </motion.div>

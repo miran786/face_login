@@ -23,9 +23,19 @@ router.post('/login', (req, res) => {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
 
-        const match = await bcrypt.compare(password, user.password_hash);
-        if (!match) {
-            return res.status(401).json({ error: 'Invalid username or password', email: user.email });
+        try {
+            // Face-only users have null password_hash
+            if (!user.password_hash) {
+                return res.status(401).json({ error: 'Invalid username or password' });
+            }
+
+            const match = await bcrypt.compare(password, user.password_hash);
+            if (!match) {
+                return res.status(401).json({ error: 'Invalid username or password', email: user.email });
+            }
+        } catch (e) {
+            console.error('Auth error:', e);
+            return res.status(500).json({ error: 'Internal server error' });
         }
 
         // Generate JWT
@@ -54,7 +64,11 @@ router.get('/me', (req, res) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         db.get(`SELECT id, username, name, email FROM users WHERE id = ?`, [decoded.id], (err, user) => {
-            if (err || !user) {
+            if (err) {
+                console.error('Database error in /me:', err);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+            if (!user) {
                 return res.status(401).json({ error: 'User not found' });
             }
             res.json({ user });

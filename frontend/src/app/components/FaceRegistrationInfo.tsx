@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_BASE } from '../config';
 import { motion } from 'motion/react';
 import { User, Mail, Phone, Lock, ArrowRight, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
@@ -40,7 +41,7 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: Fac
       }
 
       // Create User and Save Face Descriptor in Backend
-      const registerRes = await fetch('http://localhost:5000/api/face/register', {
+      const registerRes = await fetch(`${API_BASE}/api/face/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
