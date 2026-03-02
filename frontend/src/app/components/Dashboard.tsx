@@ -64,11 +64,19 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
         setBalance(balanceData.balance);
         setTransactions(historyData.transactions);
       } else {
+        const balanceFailText = await balanceRes.text();
+        const historyFailText = await historyRes.text();
+        console.error('Wallet Data API Failed: ', {
+          balanceStatus: balanceRes.status,
+          balanceText: balanceFailText,
+          historyStatus: historyRes.status,
+          historyText: historyFailText,
+        });
         setFetchError('Failed to load wallet data.');
       }
     } catch (error) {
       if ((error as Error).name !== 'AbortError') {
-        console.error('Error fetching wallet data:', error);
+        console.error('Network Error fetching wallet data:', error);
         setFetchError('Could not connect to server.');
       }
     } finally {
@@ -131,7 +139,16 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                 {isLoading ? (
                   <h2 className="text-4xl text-white/50">Loading...</h2>
                 ) : fetchError ? (
-                  <h2 className="text-2xl text-red-300">{fetchError}</h2>
+                  <div className="flex flex-col gap-2">
+                    <h2 className="text-2xl text-red-300">{fetchError}</h2>
+                    <Button
+                      variant="ghost"
+                      onClick={() => { setIsLoading(true); fetchWalletData(); }}
+                      className="text-white/80 hover:text-white hover:bg-white/20 text-sm w-fit"
+                    >
+                      Tap to retry
+                    </Button>
+                  </div>
                 ) : showBalance ? (
                   <motion.h2
                     initial={{ scale: 0.8 }}

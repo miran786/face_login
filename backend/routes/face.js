@@ -38,7 +38,7 @@ router.post('/register', (req, res) => {
             return res.status(500).json({ error: 'Internal server error' });
         }
 
-        const saveDescriptor = (userId) => {
+        const saveDescriptor = (userId, uname) => {
             const descriptorId = crypto.randomUUID();
             const descriptorJson = JSON.stringify(descriptor);
 
@@ -50,6 +50,16 @@ router.post('/register', (req, res) => {
                         console.error('Error saving descriptor:', err);
                         return res.status(500).json({ error: 'Failed to save face data' });
                     }
+
+                    // Generate JWT and set cookie so the user is logged in after registration
+                    const token = jwt.sign({ id: userId, username: uname }, JWT_SECRET, { expiresIn: '24h' });
+                    res.cookie('token', token, {
+                        httpOnly: true,
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: 'lax',
+                        maxAge: 24 * 60 * 60 * 1000
+                    });
+
                     res.status(201).json({ success: true, message: 'Face data registered securely' });
                 }
             );
@@ -69,7 +79,7 @@ router.post('/register', (req, res) => {
                     console.error('Error creating user:', err);
                     return res.status(500).json({ error: 'Failed to create user record' });
                 }
-                saveDescriptor(userId);
+                saveDescriptor(userId, username);
             }
         );
     });
@@ -123,7 +133,7 @@ router.post('/login', (req, res) => {
             // Set HttpOnly cookie
             res.cookie('token', token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
+                secure: false,
                 sameSite: 'lax',
                 maxAge: 24 * 60 * 60 * 1000 // 24 hours
             });

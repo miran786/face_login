@@ -44,6 +44,7 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: Fac
       const registerRes = await fetch(`${API_BASE}/api/face/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           username: formData.username,
           name: formData.fullName,

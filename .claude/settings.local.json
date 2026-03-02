@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:5000/api/health)",
+      "Bash(curl -s -H \"Cookie: token=test\" http://localhost:5000/api/users/contacts)",
+      "Bash(sqlite3 db/database.sqlite \"SELECT username, name, balance FROM users WHERE username IN \\(''sarah_w'', ''james_c'', ''elena_r'', ''marcus_t''\\);\")",
+      "Bash(node -e \":*)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx vite build)",
+      "Bash(timeout 5 node server.js)",
+      "Bash(lsof d:/GIT/face_login/backend/db/database.sqlite)",
+      "Bash(tasklist)",
+      "Bash(node scripts/seed_mock_users.js)",
+      "Bash(node -e \"require\\(''./db''\\).initPromise.then\\(\\(\\) => { console.log\\(''DB OK''\\); process.exit\\(0\\); }\\)\")",
+      "Bash(node -e \"const db = require\\(''./db''\\); db.initPromise.then\\(\\(\\) => { db.all\\(''SELECT username, name, balance FROM users'', \\(e,r\\) => { console.log\\(JSON.stringify\\(r, null, 2\\)\\); db.close\\(\\); }\\); }\\)\")",
+      "Bash(test -f d:/GIT/face_login/backend/.env.example)",
+      "Bash(node -e \"const db = require\\(''./db''\\); db.initPromise.then\\(\\(\\) => { db.all\\(''SELECT username, name, balance FROM users'', \\(e,r\\) => { console.table\\(r\\); db.close\\(\\); }\\); }\\)\")"
+    ]
+  }
+}
