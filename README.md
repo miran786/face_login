@@ -32,7 +32,7 @@ FaceWallet is a **biometric-first digital wallet** that authenticates users usin
 | Feature | Description |
 |---|---|
 | **Balance Dashboard** | View your current wallet balance with loading state and toggle to hide/show |
-| **Send Money** | Transfer funds to other users with amount validation (2 decimal places) |
+| **Send Money** | Transfer funds to other users — requires real-time face verification before each payment |
 | **Receive Money** | Share a wallet address or QR code to receive payments |
 | **Transaction History** | Browse your full list of sent and received transactions |
 
@@ -138,7 +138,38 @@ sequenceDiagram
     end
 ```
 
-### 3. Entity Relationship Diagram (ERD)
+### 3. Face-Verified Payment Sequence
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant C as Client (React)
+    participant ML as face-api.js
+    participant S as Server (Express)
+    participant DB as SQLite
+
+    U->>C: Click "Verify with Face ID & Send"
+    C->>C: Open Camera & Load ML Models
+    U->>C: Click "Scan & Verify"
+    C->>ML: Detect Face from Video
+    ML-->>C: 128D Descriptor
+    C->>S: POST /api/face/verify {descriptor}
+    S->>DB: SELECT descriptor FROM face_descriptors WHERE user_id = ?
+    DB-->>S: Logged-in user's descriptors only
+    S->>S: Euclidean Distance Check
+    alt Distance <= 0.55
+        S-->>C: 200 OK (Face Verified)
+        C->>S: POST /api/wallet/transfer {contactName, amount}
+        S->>DB: Atomic deduct + credit + record
+        S-->>C: 200 OK (Transaction Success)
+        C->>U: Show Success Screen
+    else Distance > 0.55
+        S-->>C: 401 (Face Verification Failed)
+        C->>U: Show Error, Transfer Blocked
+    end
+```
+
+### 4. Entity Relationship Diagram (ERD)
 
 ```mermaid
 erDiagram
@@ -178,6 +209,7 @@ erDiagram
 2. **Storage**: The descriptor is sent to the backend and stored in the `face_descriptors` table linked to your user account.
 3. **Login**: During authentication, a new descriptor is captured and compared against all stored descriptors using **Euclidean distance**.
 4. **Match decision**: If the closest match has a distance <= `0.55` (configurable threshold), login succeeds and a JWT is issued.
+5. **Transaction verification**: When sending money, the user must scan their face again. The descriptor is compared only against the logged-in user's stored face data via `POST /api/face/verify` — the transfer is blocked unless the face matches.
 
 > The SSD MobileNet v1 + FaceLandmark68Net + FaceRecognitionNet models are loaded from the `/models` directory in the frontend's public folder.
 
@@ -300,6 +332,7 @@ This will:
 |---|---|---|
 | `POST` | `/register` | Store a 128D face descriptor for a user |
 | `POST` | `/login` | Authenticate via face descriptor |
+| `POST` | `/verify` | Verify face matches logged-in user (for transaction auth, requires auth) |
 
 ### Wallet — `/api/wallet`
 | Method | Endpoint | Description |
@@ -356,6 +389,7 @@ CREATE TABLE transactions (
 - JWT tokens expire after **24 hours**.
 - The `DISTANCE_THRESHOLD` of `0.55` offers a tight match for liveness accuracy (typical `face-api.js` default is 0.6).
 - Money transfers use atomic SQL operations to prevent race conditions and double-spending.
+- Every payment requires **real-time face re-verification** — the face descriptor is checked against only the logged-in user's stored data, preventing unauthorized transfers even with a valid session.
 
 ---
 
