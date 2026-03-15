@@ -149,4 +149,48 @@ router.post('/login', (req, res) => {
     });
 });
 
+// 3. Verify face matches the currently logged-in user (for transaction authorization)
+const authenticateJWT = require('../middleware/auth');
+
+router.post('/verify', authenticateJWT, (req, res) => {
+    const { descriptor } = req.body;
+    const userId = req.user.id;
+
+    if (!descriptor || !isValidDescriptor(descriptor)) {
+        return res.status(400).json({ error: 'Valid 128D face descriptor is required' });
+    }
+
+    // Fetch only the logged-in user's descriptors
+    db.all('SELECT descriptor FROM face_descriptors WHERE user_id = ?', [userId], (err, rows) => {
+        if (err) {
+            console.error('Error fetching descriptors:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+
+        if (!rows || rows.length === 0) {
+            return res.status(400).json({ error: 'No face data registered for this account' });
+        }
+
+        let minDistance = Infinity;
+
+        rows.forEach(row => {
+            try {
+                const savedDescriptor = JSON.parse(row.descriptor);
+                const distance = euclideanDistance(descriptor, savedDescriptor);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                }
+            } catch (e) {
+                console.error('Failed to parse saved descriptor', e);
+            }
+        });
+
+        if (minDistance <= DISTANCE_THRESHOLD) {
+            res.json({ success: true, message: 'Face verified' });
+        } else {
+            res.status(401).json({ error: 'Face verification failed. Please try again.' });
+        }
+    });
+});
+
 module.exports = router;

@@ -113,6 +113,7 @@ export function FaceAuth({ onAuthSuccess, onFallback }: FaceAuthProps) {
       const verifyRes = await fetch(`${API_BASE}/api/face/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ descriptor: descriptorArray }),
       });
 

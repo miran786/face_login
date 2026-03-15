@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../config';
 import { motion } from 'motion/react';
-import { ArrowLeft, Scan, CheckCircle2, User } from 'lucide-react';
+import { ArrowLeft, Scan, CheckCircle2, User, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import * as faceapi from 'face-api.js';
 
 interface SendMoneyProps {
   onBack: () => void;
@@ -28,13 +29,23 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
   const [amount, setAmount] = useState('');
   const [selectedContact, setSelectedContact] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Face scanning state
+  const [isFaceScanning, setIsFaceScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [isScanning, setIsScanning] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
+  const [faceError, setFaceError] = useState('');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      stopCamera();
     };
   }, []);
 
@@ -48,8 +59,8 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
           const data = await response.json();
           const mappedContacts = data.contacts.map((c: any, index: number) => ({
             name: c.name,
-            avatar: '👤', // Default avatar for now
-            color: colorVariants[index % colorVariants.length] // Cycle through colors
+            avatar: '👤',
+            color: colorVariants[index % colorVariants.length]
           }));
           setContacts(mappedContacts);
         }
@@ -60,27 +71,104 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
     fetchContacts();
   }, []);
 
-  const handleAmountChange = (value: string) => {
-    const numericValue = value.replace(/[^\d.]/g, '');
-    // Allow at most one dot and 2 decimal places
-    const match = numericValue.match(/^\d*\.?\d{0,2}/);
-    if (match) {
-      setAmount(match[0]);
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
   };
 
-  const addToAmount = (value: number) => {
-    const currentAmount = parseFloat(amount || '0');
-    setAmount((currentAmount + value).toString());
+  const startFaceScan = async () => {
+    setIsFaceScanning(true);
+    setFaceError('');
+    setScanProgress(0);
+    setCameraError(false);
+
+    // Load models
+    try {
+      await Promise.all([
+        faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+        faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+        faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+      ]);
+      setModelsLoaded(true);
+    } catch (err) {
+      console.error('Failed to load FaceAPI models', err);
+      setFaceError('Failed to initialize AI models.');
+      return;
+    }
+
+    // Start camera
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' }
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error('Camera access error:', err);
+      setCameraError(true);
+    }
   };
 
-  const handleSend = async () => {
-    if (!amount || !selectedContact || parseFloat(amount) <= 0) return;
-
-    setIsProcessing(true);
+  const handleFaceScan = async () => {
+    if (!videoRef.current) return;
+    setIsScanning(true);
+    setScanProgress(0);
+    setFaceError('');
 
     try {
-      // Execute transaction on backend
+      setScanProgress(15);
+
+      if (videoRef.current.videoWidth === 0) {
+        throw new Error('Video not ready yet. Please wait a moment.');
+      }
+
+      // Detect face with retry logic
+      let detection = null;
+      let attempts = 0;
+      const maxAttempts = 20;
+      const delayMs = 150;
+
+      while (!detection && attempts < maxAttempts) {
+        attempts++;
+        detection = await faceapi.detectSingleFace(videoRef.current)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (!detection && attempts < maxAttempts) {
+          setScanProgress(15 + (attempts * 2.5));
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+
+      setScanProgress(70);
+
+      if (!detection) {
+        throw new Error('No face detected. Please ensure good lighting and look directly at the camera.');
+      }
+
+      const descriptorArray = Array.from(detection.descriptor);
+
+      // Verify face against logged-in user
+      setScanProgress(80);
+      const verifyRes = await fetch(`${API_BASE}/api/face/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ descriptor: descriptorArray })
+      });
+
+      if (!verifyRes.ok) {
+        const d = await verifyRes.json();
+        throw new Error(d.error || 'Face verification failed.');
+      }
+
+      setScanProgress(90);
+
+      // Face verified — now execute the transfer
       const response = await fetch(`${API_BASE}/api/wallet/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,17 +184,42 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
         throw new Error(errData.error || 'Transaction failed');
       }
 
-      setIsProcessing(false);
+      setScanProgress(100);
+      stopCamera();
+      setIsFaceScanning(false);
+      setIsScanning(false);
       setIsSuccess(true);
       timeoutRef.current = setTimeout(() => {
         onSend(selectedContact, parseFloat(amount));
       }, 1500);
 
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert(err instanceof Error ? err.message : 'Transaction failed. Check balance.');
-      setIsProcessing(false);
+      setFaceError(err.message || 'Face verification failed');
+      setIsScanning(false);
+      setScanProgress(0);
     }
+  };
+
+  const cancelFaceScan = () => {
+    stopCamera();
+    setIsFaceScanning(false);
+    setIsScanning(false);
+    setFaceError('');
+    setScanProgress(0);
+  };
+
+  const handleAmountChange = (value: string) => {
+    const numericValue = value.replace(/[^\d.]/g, '');
+    const match = numericValue.match(/^\d*\.?\d{0,2}/);
+    if (match) {
+      setAmount(match[0]);
+    }
+  };
+
+  const addToAmount = (value: number) => {
+    const currentAmount = parseFloat(amount || '0');
+    setAmount((currentAmount + value).toString());
   };
 
   if (isSuccess) {
@@ -134,35 +247,112 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
     );
   }
 
-  if (isProcessing) {
+  // Face scanning screen
+  if (isFaceScanning) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-black flex items-center justify-center p-6">
-        <motion.div className="text-center">
-          <motion.div
-            animate={{
-              scale: [1, 1.2, 1],
-              rotate: [0, 180, 360],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: 'linear',
-            }}
-            className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mb-6"
-          >
-            <Scan className="w-12 h-12 text-white" />
-          </motion.div>
-          <h2 className="text-2xl text-white mb-2">Verifying Face ID</h2>
-          <p className="text-purple-300">Please look at the camera</p>
-          <div className="mt-6">
-            <div className="h-1 w-64 bg-white/20 rounded-full overflow-hidden mx-auto">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: '100%' }}
-                transition={{ duration: 2 }}
-                className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
-              />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full"
+        >
+          <div className="text-center mb-6">
+            <h2 className="text-2xl text-white mb-1">Verify Face to Send</h2>
+            <p className="text-purple-300 text-sm">
+              ₹{parseFloat(amount || '0').toFixed(2)} → {selectedContact}
+            </p>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
+            <div className="relative aspect-square mb-6 rounded-2xl overflow-hidden bg-black">
+              {cameraError ? (
+                <div className="absolute inset-0 flex items-center justify-center text-white bg-gray-900">
+                  <div className="text-center">
+                    <Scan className="w-16 h-16 mx-auto mb-3 text-purple-400" />
+                    <p>Camera not available</p>
+                  </div>
+                </div>
+              ) : (
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+              )}
+
+              {/* Scanning overlay */}
+              {isScanning && (
+                <motion.div
+                  initial={{ top: 0 }}
+                  animate={{ top: '100%' }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                  className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-purple-400 to-transparent"
+                />
+              )}
+
+              {/* Face detection frame */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <motion.div
+                  animate={isScanning ? {
+                    scale: [1, 1.05, 1],
+                    opacity: [0.5, 1, 0.5],
+                  } : {}}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="w-48 h-60 border-4 border-purple-500 rounded-3xl"
+                  style={{ boxShadow: '0 0 40px rgba(168, 85, 247, 0.4)' }}
+                >
+                  <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-white rounded-tl-2xl" />
+                  <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-white rounded-tr-2xl" />
+                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-white rounded-bl-2xl" />
+                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-white rounded-br-2xl" />
+                </motion.div>
+              </div>
             </div>
+
+            {/* Progress bar */}
+            {isScanning && (
+              <div className="mb-4">
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${scanProgress}%` }}
+                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                  />
+                </div>
+                <p className="text-center text-white text-sm mt-2">
+                  Verifying... {Math.round(scanProgress)}%
+                </p>
+              </div>
+            )}
+
+            {!isScanning && (
+              <div className="space-y-3">
+                <Button
+                  onClick={handleFaceScan}
+                  disabled={!modelsLoaded || cameraError}
+                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl text-lg disabled:opacity-50"
+                >
+                  <Scan className="mr-2" />
+                  {modelsLoaded ? 'Scan & Verify' : 'Loading ML Models...'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={cancelFaceScan}
+                  className="w-full text-purple-300 hover:text-white hover:bg-white/10 py-4 rounded-2xl"
+                >
+                  <X className="mr-2 w-4 h-4" />
+                  Cancel
+                </Button>
+              </div>
+            )}
+
+            {faceError && (
+              <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl">
+                <p className="text-center text-red-400 text-sm font-medium">{faceError}</p>
+              </div>
+            )}
           </div>
         </motion.div>
       </div>
@@ -262,7 +452,7 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
       {/* Send Button */}
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black/80 to-transparent">
         <Button
-          onClick={handleSend}
+          onClick={startFaceScan}
           disabled={!amount || !selectedContact || parseFloat(amount) <= 0}
           className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl text-lg disabled:opacity-50"
         >
