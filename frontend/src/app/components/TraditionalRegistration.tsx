@@ -18,6 +18,8 @@ export interface TraditionalUserData {
   password: string;
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegistrationProps) {
   const [formData, setFormData] = useState<TraditionalUserData>({
     fullName: '',
@@ -31,13 +33,56 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [step, setStep] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Only allow digits in phone, max 10
+  const handlePhoneChange = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 10);
+    setFormData({ ...formData, phone: digits });
+    if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: '' });
+  };
+
+  const validateStep1 = () => {
+    const errors: Record<string, string> = {};
+    if (!formData.fullName.trim()) errors.fullName = 'Full name is required';
+    if (!formData.username.trim()) errors.username = 'Username is required';
+    if (!formData.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!EMAIL_REGEX.test(formData.email)) {
+      errors.email = 'Enter a valid email address';
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateStep2 = () => {
+    const errors: Record<string, string> = {};
+    const digits = formData.phone.replace(/\D/g, '');
+    if (!formData.phone) {
+      errors.phone = 'Phone number is required';
+    } else if (digits.length !== 10) {
+      errors.phone = 'Phone must be exactly 10 digits';
+    }
+    if (!formData.password) {
+      errors.password = 'Password is required';
+    } else if (formData.password.length < 8) {
+      errors.password = 'Password must be at least 8 characters';
+    }
+    if (formData.password !== confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match';
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
-    if (step === 1 && formData.fullName && formData.username && formData.email) {
-      setStep(2);
-    } else if (step === 2 && formData.phone && formData.password && formData.password === confirmPassword) {
+
+    if (step === 1) {
+      if (validateStep1()) setStep(2);
+    } else if (step === 2) {
+      if (!validateStep2()) return;
       try {
         const response = await fetch(`${API_BASE}/api/register`, {
           method: 'POST',
@@ -83,9 +128,6 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
     return { text: 'Strong', color: 'text-green-400' };
   };
 
-  const isStep1Valid = formData.fullName && formData.username && formData.email;
-  const isStep2Valid = formData.phone && formData.password.length >= 8 && formData.password === confirmPassword;
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-black flex items-center justify-center p-6">
       <motion.div
@@ -114,15 +156,13 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
           <motion.div
             initial={{ scaleX: 0 }}
             animate={{ scaleX: 1 }}
-            className={`h-1.5 flex-1 rounded-full ${step >= 1 ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-white/20'
-              }`}
+            className={`h-1.5 flex-1 rounded-full ${step >= 1 ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-white/20'}`}
           />
           <motion.div
             initial={{ scaleX: 0 }}
             animate={{ scaleX: step >= 2 ? 1 : 0 }}
             transition={{ delay: 0.1 }}
-            className={`h-1.5 flex-1 rounded-full ${step >= 2 ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-white/20'
-              }`}
+            className={`h-1.5 flex-1 rounded-full ${step >= 2 ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-white/20'}`}
           />
         </div>
 
@@ -146,12 +186,12 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
                     <Input
                       type="text"
                       value={formData.fullName}
-                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      onChange={(e) => { setFormData({ ...formData, fullName: e.target.value }); setFieldErrors({ ...fieldErrors, fullName: '' }); }}
                       placeholder="John Doe"
                       className="bg-white/10 border-white/20 text-white placeholder:text-purple-300 pl-12 py-6 rounded-2xl"
-                      required
                     />
                   </div>
+                  {fieldErrors.fullName && <p className="text-red-400 text-xs mt-1">{fieldErrors.fullName}</p>}
                 </div>
 
                 <div>
@@ -161,12 +201,12 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
                     <Input
                       type="text"
                       value={formData.username}
-                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      onChange={(e) => { setFormData({ ...formData, username: e.target.value }); setFieldErrors({ ...fieldErrors, username: '' }); }}
                       placeholder="johndoe"
                       className="bg-white/10 border-white/20 text-white placeholder:text-purple-300 pl-12 py-6 rounded-2xl"
-                      required
                     />
                   </div>
+                  {fieldErrors.username && <p className="text-red-400 text-xs mt-1">{fieldErrors.username}</p>}
                 </div>
 
                 <div>
@@ -174,20 +214,19 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400 w-5 h-5" />
                     <Input
-                      type="email"
+                      type="text"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setFieldErrors({ ...fieldErrors, email: '' }); }}
                       placeholder="john@example.com"
                       className="bg-white/10 border-white/20 text-white placeholder:text-purple-300 pl-12 py-6 rounded-2xl"
-                      required
                     />
                   </div>
+                  {fieldErrors.email && <p className="text-red-400 text-xs mt-1">{fieldErrors.email}</p>}
                 </div>
 
                 <Button
                   type="submit"
-                  disabled={!isStep1Valid}
-                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl text-lg disabled:opacity-50 mt-6"
+                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl text-lg mt-6"
                 >
                   Continue
                   <ArrowRight className="ml-2" />
@@ -202,18 +241,22 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
                 className="space-y-5"
               >
                 <div>
-                  <label className="text-purple-200 text-sm mb-2 block">Phone Number</label>
+                  <label className="text-purple-200 text-sm mb-2 block">Phone Number (10 digits)</label>
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400 w-5 h-5" />
                     <Input
                       type="tel"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="+1 (555) 000-0000"
+                      onChange={(e) => handlePhoneChange(e.target.value)}
+                      placeholder="9876543210"
+                      maxLength={10}
                       className="bg-white/10 border-white/20 text-white placeholder:text-purple-300 pl-12 py-6 rounded-2xl"
-                      required
                     />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-purple-400 text-xs">
+                      {formData.phone.replace(/\D/g, '').length}/10
+                    </span>
                   </div>
+                  {fieldErrors.phone && <p className="text-red-400 text-xs mt-1">{fieldErrors.phone}</p>}
                 </div>
 
                 <div>
@@ -223,10 +266,9 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
                     <Input
                       type={showPassword ? 'text' : 'password'}
                       value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setFieldErrors({ ...fieldErrors, password: '' }); }}
                       placeholder="••••••••"
                       className="bg-white/10 border-white/20 text-white placeholder:text-purple-300 pl-12 pr-12 py-6 rounded-2xl"
-                      required
                     />
                     <button
                       type="button"
@@ -236,6 +278,7 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
+                  {fieldErrors.password && <p className="text-red-400 text-xs mt-1">{fieldErrors.password}</p>}
                   {formData.password && (
                     <div className="mt-2">
                       <div className="flex gap-1 mb-1">
@@ -243,15 +286,11 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
                           <div
                             key={i}
                             className={`h-1 flex-1 rounded-full ${i < passwordStrength(formData.password)
-                              ? passwordStrength(formData.password) <= 1
-                                ? 'bg-red-400'
-                                : passwordStrength(formData.password) <= 2
-                                  ? 'bg-yellow-400'
-                                  : passwordStrength(formData.password) <= 3
-                                    ? 'bg-blue-400'
+                              ? passwordStrength(formData.password) <= 1 ? 'bg-red-400'
+                                : passwordStrength(formData.password) <= 2 ? 'bg-yellow-400'
+                                  : passwordStrength(formData.password) <= 3 ? 'bg-blue-400'
                                     : 'bg-green-400'
-                              : 'bg-white/20'
-                              }`}
+                              : 'bg-white/20'}`}
                           />
                         ))}
                       </div>
@@ -269,10 +308,9 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
                     <Input
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onChange={(e) => { setConfirmPassword(e.target.value); setFieldErrors({ ...fieldErrors, confirmPassword: '' }); }}
                       placeholder="••••••••"
                       className="bg-white/10 border-white/20 text-white placeholder:text-purple-300 pl-12 pr-12 py-6 rounded-2xl"
-                      required
                     />
                     <button
                       type="button"
@@ -282,9 +320,7 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
                       {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
-                  {confirmPassword && formData.password !== confirmPassword && (
-                    <p className="text-red-400 text-xs mt-1">Passwords do not match</p>
-                  )}
+                  {fieldErrors.confirmPassword && <p className="text-red-400 text-xs mt-1">{fieldErrors.confirmPassword}</p>}
                 </div>
 
                 <div className="flex gap-3 mt-6">
@@ -298,7 +334,6 @@ export function TraditionalRegistration({ onComplete, onBack }: TraditionalRegis
                   </Button>
                   <Button
                     type="submit"
-                    disabled={!isStep2Valid}
                     className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl disabled:opacity-50"
                   >
                     Create Account

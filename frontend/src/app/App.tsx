@@ -6,6 +6,8 @@ import { RegistrationStart } from './components/RegistrationStart';
 import { FaceRegistration } from './components/FaceRegistration';
 import { FaceRegistrationInfo, FaceUserData } from './components/FaceRegistrationInfo';
 import { TraditionalRegistration, TraditionalUserData } from './components/TraditionalRegistration';
+import { TraditionalLogin } from './components/TraditionalLogin';
+import { ForgotPassword } from './components/ForgotPassword';
 
 type AppState =
   | 'start'
@@ -13,10 +15,9 @@ type AppState =
   | 'faceRegistrationInfo'
   | 'traditionalRegistration'
   | 'traditionalLogin'
+  | 'forgotPassword'
   | 'login'
   | 'dashboard';
-
-import { TraditionalLogin } from './components/TraditionalLogin';
 
 function App() {
   const [appState, setAppState] = useState<AppState>('start');
@@ -37,7 +38,7 @@ function App() {
             fullName: data.user.name,
             username: data.user.username,
             email: data.user.email || '',
-            phone: ''
+            phone: data.user.phone || ''
           });
           setAppState('dashboard');
         }
@@ -82,11 +83,16 @@ function App() {
       setUserData({
         fullName: user.name || user.fullName,
         username: user.username,
-        email: '',
-        phone: ''
+        email: user.email || '',
+        phone: user.phone || ''
       });
     }
     setAppState('dashboard');
+  };
+
+  const handleLogout = () => {
+    setUserData(null);
+    setAppState('start');
   };
 
   if (appState === 'start') {
@@ -101,7 +107,6 @@ function App() {
   }
 
   if (appState === 'faceRegistration') {
-    // Create temporary user data for face registration
     const tempUserData: FaceUserData = {
       fullName: 'New User',
       username: 'temp_user',
@@ -141,6 +146,16 @@ function App() {
       <TraditionalLogin
         onLoginSuccess={handleTraditionalRegistrationComplete}
         onBack={handleBackToStart}
+        onForgotPassword={() => setAppState('forgotPassword')}
+      />
+    );
+  }
+
+  if (appState === 'forgotPassword') {
+    return (
+      <ForgotPassword
+        onBack={() => setAppState('traditionalLogin')}
+        onSuccess={() => setAppState('traditionalLogin')}
       />
     );
   }
@@ -154,7 +169,12 @@ function App() {
     );
   }
 
-  return <Dashboard userName={userData?.fullName} onLogout={() => setAppState('start')} />;
+  return (
+    <Dashboard
+      userName={userData?.fullName}
+      onLogout={handleLogout}
+    />
+  );
 }
 
 export default App;

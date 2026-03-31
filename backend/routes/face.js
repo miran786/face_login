@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-this';
 
@@ -17,7 +18,6 @@ const euclideanDistance = (desc1, desc2) => {
 };
 
 // Euclidean distance threshold for a face match (0.55 for tight matching)
-// Typical range: 0.55-0.6 for secure authentication
 const DISTANCE_THRESHOLD = 0.55;
 
 // Validate that a descriptor is a 128-element array of finite numbers
@@ -25,11 +25,25 @@ const isValidDescriptor = (d) =>
     Array.isArray(d) && d.length === 128 && d.every(v => Number.isFinite(v));
 
 // 1. Register Face Descriptor
-router.post('/register', (req, res) => {
-    const { username, descriptor, name, email, phone } = req.body;
+router.post('/register', async (req, res) => {
+    const { username, descriptor, name, email, phone, password } = req.body;
 
     if (!username || !descriptor || !isValidDescriptor(descriptor)) {
         return res.status(400).json({ error: 'Username and a valid 128D face descriptor are required' });
+    }
+
+    // Hash password if provided
+    let passwordHash = null;
+    if (password) {
+        if (password.length < 8) {
+            return res.status(400).json({ error: 'Password must be at least 8 characters' });
+        }
+        try {
+            passwordHash = await bcrypt.hash(password, 10);
+        } catch (e) {
+            console.error('Error hashing password:', e);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
     }
 
     db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
@@ -69,11 +83,11 @@ router.post('/register', (req, res) => {
             return res.status(409).json({ error: 'Username already exists' });
         }
 
-        // Create user first if registering via face for the first time
+        // Create user first, with optional password hash
         const userId = crypto.randomUUID();
         db.run(
             `INSERT INTO users (id, username, email, phone, name, password_hash, balance) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [userId, username, email || null, phone || null, name || username, null, 1000.00],
+            [userId, username, email || null, phone || null, name || username, passwordHash, 1000.00],
             function (err) {
                 if (err) {
                     console.error('Error creating user:', err);
@@ -108,7 +122,6 @@ router.post('/login', (req, res) => {
         let bestMatch = null;
         let minDistance = Infinity;
 
-        // Iterate through all saved descriptors to find the closest match
         rows.forEach(row => {
             try {
                 const savedDescriptor = JSON.parse(row.descriptor);
@@ -123,19 +136,14 @@ router.post('/login', (req, res) => {
             }
         });
 
-        // Determine if the best match is within the acceptable threshold
         if (bestMatch && minDistance <= DISTANCE_THRESHOLD) {
-            // Match found within threshold
-
-            // Generate JWT
             const token = jwt.sign({ id: bestMatch.user_id, username: bestMatch.username }, JWT_SECRET, { expiresIn: '24h' });
 
-            // Set HttpOnly cookie
             res.cookie('token', token, {
                 httpOnly: true,
                 secure: false,
                 sameSite: 'lax',
-                maxAge: 24 * 60 * 60 * 1000 // 24 hours
+                maxAge: 24 * 60 * 60 * 1000
             });
 
             res.json({

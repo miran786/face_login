@@ -43,7 +43,9 @@ node clearDb.js    # reset database
 Frontend (Vite :5173) and backend (Express :5000) run as separate processes. Frontend calls backend via `API_BASE` configured in `frontend/src/app/config.ts` (reads `VITE_API_URL` env var, defaults to `http://localhost:5000`). CORS is configured on the backend to accept requests from `FRONTEND_URL`.
 
 ### Frontend State Machine
-`App.tsx` manages navigation through a `useState<AppState>` with states: `start`, `faceRegistration`, `faceRegistrationInfo`, `traditionalRegistration`, `traditionalLogin`, `login`, `dashboard`. There is no router library — state transitions drive which component renders.
+`App.tsx` manages navigation through a `useState<AppState>` with states: `start`, `faceRegistration`, `faceRegistrationInfo`, `traditionalRegistration`, `traditionalLogin`, `forgotPassword`, `login`, `dashboard`. There is no router library — state transitions drive which component renders.
+
+`Dashboard.tsx` has its own inner `activeView` state (`dashboard` | `send` | `receive` | `history` | `profile`) that swaps between sub-components without touching `App.tsx`.
 
 ### Face Recognition Flow
 1. Browser loads SSD MobileNet v1 + FaceLandmark68Net + FaceRecognitionNet models from `frontend/public/models/`
@@ -54,26 +56,56 @@ Frontend (Vite :5173) and backend (Express :5000) run as separate processes. Fro
 
 ### Backend Route Structure
 All routes are mounted under `/api/` in `server.js`:
-- `routes/auth.js` — login/logout/session (`/api/auth`)
+- `routes/auth.js` — login/logout/session/verify-password/reset-password (`/api/auth`)
 - `routes/register.js` — user creation (`/api/register`)
 - `routes/face.js` — face descriptor storage and matching (`/api/face`)
 - `routes/wallet.js` — balance, history, transfers (`/api/wallet`)
-- `routes/user.js` — contacts list (`/api/users`)
+- `routes/user.js` — contacts list + profile GET/PUT (`/api/users`)
+- `routes/admin.js` — destructive ops: `DELETE /api/admin/clear-data` wipes all tables
 
 Auth middleware in `middleware/auth.js` validates JWT from HttpOnly cookies.
+
+Key auth endpoints:
+- `POST /api/auth/verify-password` — verifies password for the *currently logged-in* user (used as transaction auth fallback when face fails); does **not** issue a new cookie
+- `POST /api/auth/reset-password` — updates password given `{email, newPassword}`; no login required (used after frontend OTP verification)
 
 ### Database (SQLite)
 Schema in `backend/db/schema.sql`: three tables — `users`, `face_descriptors`, `transactions`. DB connection in `db/index.js` exports an `initPromise` that the server awaits before listening. Money transfers use atomic SQL (decrement sender + increment recipient in one operation).
 
+### EmailJS (frontend/src/utils/email-service.ts)
+Credentials are hardcoded with env-var overrides (`VITE_EMAILJS_*`). Two active flows:
+1. **Forgot password**: `sendPasswordResetOTP(email, otp)` — frontend generates a 6-digit OTP, sends it via `template_p4qx7ob`, then calls `POST /api/auth/reset-password` after the user verifies the OTP client-side
+2. **Suspicious login alert**: `sendSuspiciousLoginAlert(email, metadata)` — fires after 3 consecutive failed password login attempts via `template_avr2cqo`
+
 ### Environment Variables
 - Backend `.env`: `PORT`, `JWT_SECRET`, `FRONTEND_URL`, `NODE_ENV`
-- Frontend `.env` (optional): `VITE_API_URL`
+- Frontend `.env` (optional): `VITE_API_URL`, `VITE_EMAILJS_SERVICE_ID`, `VITE_EMAILJS_TEMPLATE_ID`, `VITE_EMAILJS_PUBLIC_KEY`
 
 ## Key Conventions
 
-- **Commit format**: `type(scope): description` (e.g., `feat(phase-3): add face auth`)
 - **Backend**: CommonJS (`require`), no TypeScript
-- **Frontend**: ES modules, TypeScript, Tailwind CSS v4, Radix UI components in `components/ui/`
+- **Frontend**: ES modules, TypeScript, Tailwind CSS v4, Radix UI components in `components/ui/`; Figma-originated components in `components/figma/`
 - **Auth**: JWT stored in HttpOnly cookies, 24h expiry
 - **No test framework configured** — backend `package.json` has no test runner
-- **GSD methodology**: project planning docs live in `.gsd/` (SPEC.md, ROADMAP.md, STATE.md) — reference PROJECT_RULES.md for the workflow
+
+## Commit Format
+
+`type(scope): description` — scope is the phase number for phase work (e.g., `feat(phase-3): add face auth`)
+
+| Type | Usage |
+|------|-------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `refactor` | Code restructure, no behavior change |
+| `test` | Adding/updating tests |
+| `chore` | Maintenance, dependencies |
+
+## GSD Workflow
+
+Project planning docs live in `.gsd/` (`SPEC.md`, `ROADMAP.md`, `STATE.md`). The methodology follows **SPEC → PLAN → EXECUTE → VERIFY → COMMIT**:
+
+- No implementation until `SPEC.md` has `Status: FINALIZED`
+- Every change requires empirical proof (curl output, screenshot, build output)
+- One task = one commit; update `STATE.md` after each wave of work
+- See `PROJECT_RULES.md` for the full canonical rules

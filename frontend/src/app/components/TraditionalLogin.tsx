@@ -10,9 +10,10 @@ import { sendSuspiciousLoginAlert } from '../../utils/email-service';
 interface TraditionalLoginProps {
     onLoginSuccess: (userData: TraditionalUserData) => void;
     onBack: () => void;
+    onForgotPassword: () => void;
 }
 
-export function TraditionalLogin({ onLoginSuccess, onBack }: TraditionalLoginProps) {
+export function TraditionalLogin({ onLoginSuccess, onBack, onForgotPassword }: TraditionalLoginProps) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -51,7 +52,7 @@ export function TraditionalLogin({ onLoginSuccess, onBack }: TraditionalLoginPro
                         };
                         sendSuspiciousLoginAlert(data.email, metadata);
                         setErrorMsg('Too many failed attempts. A security alert has been sent to your registered email.');
-                        setFailedAttempts(0); // Optionally reset or keep them locked
+                        setFailedAttempts(0);
                     } else {
                         setErrorMsg(data.error || 'Login failed');
                     }
@@ -62,16 +63,14 @@ export function TraditionalLogin({ onLoginSuccess, onBack }: TraditionalLoginPro
                 return;
             }
 
-            // Successful login resets failed attempts
             setFailedAttempts(0);
 
-            // Assume data.user contains the user details
             onLoginSuccess({
                 fullName: data.user.name,
                 username: data.user.username,
                 email: data.user.email || '',
-                phone: '', // Placeholder, usually not sent back or not needed for login
-                password: '' // Don't store password in state
+                phone: data.user.phone || '',
+                password: ''
             });
         } catch (err) {
             setErrorMsg('Network error, please try again later.');
@@ -127,7 +126,16 @@ export function TraditionalLogin({ onLoginSuccess, onBack }: TraditionalLoginPro
                         </div>
 
                         <div>
-                            <label className="text-purple-200 text-sm mb-2 block">Password</label>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-purple-200 text-sm">Password</label>
+                                <button
+                                    type="button"
+                                    onClick={onForgotPassword}
+                                    className="text-purple-400 hover:text-purple-300 text-xs underline underline-offset-2"
+                                >
+                                    Forgot Password?
+                                </button>
+                            </div>
                             <div className="relative">
                                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400 w-5 h-5" />
                                 <Input

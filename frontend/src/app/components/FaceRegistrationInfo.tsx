@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { API_BASE } from '../config';
 import { motion } from 'motion/react';
-import { User, Mail, Phone, Lock, ArrowRight, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { User, Mail, Phone, Lock, ArrowRight, CheckCircle2, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 
@@ -14,10 +14,13 @@ interface FaceRegistrationInfoProps {
 
 export interface FaceUserData {
   fullName: string;
-  username: string; // added username
+  username: string;
   email: string;
   phone: string;
+  password?: string;
 }
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: FaceRegistrationInfoProps) {
   const [formData, setFormData] = useState<FaceUserData>({
@@ -25,13 +28,53 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: Fac
     username: '',
     email: '',
     phone: '',
+    password: '',
   });
-
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Only allow digits in phone, max 10
+  const handlePhoneChange = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 10);
+    setFormData({ ...formData, phone: digits });
+    if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: '' });
+  };
+
+  const validate = () => {
+    const errors: Record<string, string> = {};
+    if (!formData.fullName.trim()) errors.fullName = 'Full name is required';
+    if (!formData.username.trim()) errors.username = 'Username is required';
+    if (!formData.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!EMAIL_REGEX.test(formData.email)) {
+      errors.email = 'Enter a valid email address';
+    }
+    const digits = formData.phone.replace(/\D/g, '');
+    if (!formData.phone) {
+      errors.phone = 'Phone number is required';
+    } else if (digits.length !== 10) {
+      errors.phone = 'Phone must be exactly 10 digits';
+    }
+    if (!formData.password) {
+      errors.password = 'Password is required (used as backup if Face ID fails)';
+    } else if (formData.password.length < 8) {
+      errors.password = 'Password must be at least 8 characters';
+    }
+    if (formData.password !== confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match';
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validate()) return;
+
     setIsRegistering(true);
     setErrorMsg('');
 
@@ -40,7 +83,6 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: Fac
         throw new Error('Face descriptor is missing or invalid. Please go back and scan your face again.');
       }
 
-      // Create User and Save Face Descriptor in Backend
       const registerRes = await fetch(`${API_BASE}/api/face/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -50,6 +92,7 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: Fac
           name: formData.fullName,
           email: formData.email,
           phone: formData.phone,
+          password: formData.password,
           descriptor: faceDescriptor
         })
       });
@@ -72,7 +115,23 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: Fac
     }
   };
 
-  const isValid = formData.fullName && formData.username && formData.email && formData.phone;
+  const passwordStrength = (password: string) => {
+    let strength = 0;
+    if (password.length >= 8) strength++;
+    if (password.match(/[a-z]/) && password.match(/[A-Z]/)) strength++;
+    if (password.match(/[0-9]/)) strength++;
+    if (password.match(/[^a-zA-Z0-9]/)) strength++;
+    return strength;
+  };
+
+  const getStrengthText = () => {
+    const s = passwordStrength(formData.password || '');
+    if (s === 0) return { text: '', color: '' };
+    if (s <= 1) return { text: 'Weak', color: 'text-red-400' };
+    if (s <= 2) return { text: 'Fair', color: 'text-yellow-400' };
+    if (s <= 3) return { text: 'Good', color: 'text-blue-400' };
+    return { text: 'Strong', color: 'text-green-400' };
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-950 via-emerald-950 to-black flex items-center justify-center p-6">
@@ -110,12 +169,18 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: Fac
           <Button
             type="button"
             variant="outline"
-            onClick={() => setFormData({
-              fullName: 'John Doe',
-              username: 'johndoe' + Math.floor(Math.random() * 1000),
-              email: 'john@example.com',
-              phone: '+1 (555) 123-4567'
-            })}
+            onClick={() => {
+              const rand = Math.floor(Math.random() * 1000);
+              setFormData({
+                fullName: 'John Doe',
+                username: `johndoe${rand}`,
+                email: `john${rand}@example.com`,
+                phone: '9876543210',
+                password: 'Password@1',
+              });
+              setConfirmPassword('Password@1');
+              setFieldErrors({});
+            }}
             className="w-full bg-white/5 border-white/20 text-green-300 hover:bg-white/10 hover:text-white rounded-2xl py-2 text-sm"
           >
             ✨ Fill Mock Data
@@ -127,7 +192,8 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: Fac
             transition={{ delay: 0.3 }}
             className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl"
           >
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Full Name */}
               <div>
                 <label className="text-green-200 text-sm mb-2 block">Full Name</label>
                 <div className="relative">
@@ -135,76 +201,144 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: Fac
                   <Input
                     type="text"
                     value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, fullName: e.target.value }); setFieldErrors({ ...fieldErrors, fullName: '' }); }}
                     placeholder="John Doe"
                     className="bg-white/10 border-white/20 text-white placeholder:text-green-300 pl-12 py-6 rounded-2xl"
-                    required
                   />
                 </div>
+                {fieldErrors.fullName && <p className="text-red-400 text-xs mt-1">{fieldErrors.fullName}</p>}
               </div>
 
+              {/* Username */}
               <div>
                 <label className="text-green-200 text-sm mb-2 block">Username</label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400 w-5 h-5" />
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400 w-5 h-5" />
                   <Input
                     type="text"
                     value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value.toLowerCase().trim() })}
+                    onChange={(e) => { setFormData({ ...formData, username: e.target.value.toLowerCase().trim() }); setFieldErrors({ ...fieldErrors, username: '' }); }}
                     placeholder="johndoe"
                     className="bg-white/10 border-white/20 text-white placeholder:text-green-300 pl-12 py-6 rounded-2xl"
-                    required
                   />
                 </div>
+                {fieldErrors.username && <p className="text-red-400 text-xs mt-1">{fieldErrors.username}</p>}
               </div>
 
+              {/* Email */}
               <div>
                 <label className="text-green-200 text-sm mb-2 block">Email Address</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400 w-5 h-5" />
                   <Input
-                    type="email"
+                    type="text"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setFieldErrors({ ...fieldErrors, email: '' }); }}
                     placeholder="john@example.com"
                     className="bg-white/10 border-white/20 text-white placeholder:text-green-300 pl-12 py-6 rounded-2xl"
-                    required
                   />
                 </div>
+                {fieldErrors.email && <p className="text-red-400 text-xs mt-1">{fieldErrors.email}</p>}
               </div>
 
+              {/* Phone */}
               <div>
-                <label className="text-green-200 text-sm mb-2 block">Phone Number</label>
+                <label className="text-green-200 text-sm mb-2 block">Phone Number (10 digits)</label>
                 <div className="relative">
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400 w-5 h-5" />
                   <Input
                     type="tel"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="+1 (555) 000-0000"
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    placeholder="9876543210"
+                    maxLength={10}
                     className="bg-white/10 border-white/20 text-white placeholder:text-green-300 pl-12 py-6 rounded-2xl"
-                    required
                   />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-400 text-xs">
+                    {formData.phone.replace(/\D/g, '').length}/10
+                  </span>
                 </div>
+                {fieldErrors.phone && <p className="text-red-400 text-xs mt-1">{fieldErrors.phone}</p>}
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="text-green-200 text-sm mb-2 block">Backup Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400 w-5 h-5" />
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setFieldErrors({ ...fieldErrors, password: '' }); }}
+                    placeholder="••••••••"
+                    className="bg-white/10 border-white/20 text-white placeholder:text-green-300 pl-12 pr-12 py-6 rounded-2xl"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-green-400"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {fieldErrors.password && <p className="text-red-400 text-xs mt-1">{fieldErrors.password}</p>}
+                {formData.password && (
+                  <div className="mt-2">
+                    <div className="flex gap-1 mb-1">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className={`h-1 flex-1 rounded-full ${i < passwordStrength(formData.password || '')
+                          ? passwordStrength(formData.password || '') <= 1 ? 'bg-red-400'
+                            : passwordStrength(formData.password || '') <= 2 ? 'bg-yellow-400'
+                              : passwordStrength(formData.password || '') <= 3 ? 'bg-blue-400'
+                                : 'bg-green-400'
+                          : 'bg-white/20'}`} />
+                      ))}
+                    </div>
+                    <p className={`text-xs ${getStrengthText().color}`}>{getStrengthText().text}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="text-green-200 text-sm mb-2 block">Confirm Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400 w-5 h-5" />
+                  <Input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => { setConfirmPassword(e.target.value); setFieldErrors({ ...fieldErrors, confirmPassword: '' }); }}
+                    placeholder="••••••••"
+                    className="bg-white/10 border-white/20 text-white placeholder:text-green-300 pl-12 pr-12 py-6 rounded-2xl"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-green-400"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {fieldErrors.confirmPassword && <p className="text-red-400 text-xs mt-1">{fieldErrors.confirmPassword}</p>}
               </div>
 
               <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-4">
                 <p className="text-green-200 text-sm">
-                  ✨ No password needed! You'll log in with Face ID
+                  ✨ You'll log in with Face ID. The password is your secure backup.
                 </p>
               </div>
 
               <Button
                 type="submit"
-                disabled={!isValid || isRegistering}
-                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-6 rounded-2xl text-lg disabled:opacity-50 mt-6"
+                disabled={isRegistering}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-6 rounded-2xl text-lg disabled:opacity-50 mt-2"
               >
-                {isRegistering ? 'Registering Device...' : 'Complete Registration'}
+                {isRegistering ? 'Registering...' : 'Complete Registration'}
                 {!isRegistering && <ArrowRight className="ml-2" />}
               </Button>
 
               {errorMsg && (
-                <p className="text-red-400 text-center text-sm font-medium mt-4">
+                <p className="text-red-400 text-center text-sm font-medium mt-2">
                   {errorMsg}
                 </p>
               )}
@@ -213,7 +347,7 @@ export function FaceRegistrationInfo({ faceDescriptor, onComplete, onBack }: Fac
         </div>
 
         <p className="text-center text-green-300 text-xs mt-6">
-          Your face data is stored securely on your device only
+          Your face data is stored securely and never shared
         </p>
       </motion.div>
     </div>

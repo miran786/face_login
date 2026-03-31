@@ -22,6 +22,7 @@ app.use('/api/register', require('./routes/register'));
 app.use('/api/face', require('./routes/face'));
 app.use('/api/wallet', require('./routes/wallet'));
 app.use('/api/users', require('./routes/user'));
+app.use('/api/admin', require('./routes/admin'));
 
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });

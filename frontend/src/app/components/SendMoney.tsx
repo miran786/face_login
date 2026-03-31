@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../config';
 import { motion } from 'motion/react';
-import { ArrowLeft, Scan, CheckCircle2, User, X } from 'lucide-react';
+import { ArrowLeft, Scan, CheckCircle2, User, X, Lock, Eye, EyeOff } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import * as faceapi from 'face-api.js';
@@ -41,6 +41,13 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
   const [faceError, setFaceError] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Password fallback state
+  const [showPasswordFallback, setShowPasswordFallback] = useState(false);
+  const [fallbackPassword, setFallbackPassword] = useState('');
+  const [showFallbackPwd, setShowFallbackPwd] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -83,8 +90,8 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
     setFaceError('');
     setScanProgress(0);
     setCameraError(false);
+    setShowPasswordFallback(false);
 
-    // Load models
     try {
       await Promise.all([
         faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
@@ -98,7 +105,6 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
       return;
     }
 
-    // Start camera
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user' }
@@ -126,7 +132,6 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
         throw new Error('Video not ready yet. Please wait a moment.');
       }
 
-      // Detect face with retry logic
       let detection = null;
       let attempts = 0;
       const maxAttempts = 20;
@@ -152,7 +157,6 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
 
       const descriptorArray = Array.from(detection.descriptor);
 
-      // Verify face against logged-in user
       setScanProgress(80);
       const verifyRes = await fetch(`${API_BASE}/api/face/verify`, {
         method: 'POST',
@@ -167,31 +171,7 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
       }
 
       setScanProgress(90);
-
-      // Face verified — now execute the transfer
-      const response = await fetch(`${API_BASE}/api/wallet/transfer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          contactName: selectedContact,
-          amount: parseFloat(amount)
-        })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Transaction failed');
-      }
-
-      setScanProgress(100);
-      stopCamera();
-      setIsFaceScanning(false);
-      setIsScanning(false);
-      setIsSuccess(true);
-      timeoutRef.current = setTimeout(() => {
-        onSend(selectedContact, parseFloat(amount));
-      }, 1500);
+      await executeTransfer();
 
     } catch (err: any) {
       console.error(err);
@@ -201,12 +181,76 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
     }
   };
 
+  // Shared transfer execution (used by both face and password paths)
+  const executeTransfer = async () => {
+    const response = await fetch(`${API_BASE}/api/wallet/transfer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        contactName: selectedContact,
+        amount: parseFloat(amount)
+      })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error || 'Transaction failed');
+    }
+
+    setScanProgress(100);
+    stopCamera();
+    setIsFaceScanning(false);
+    setIsScanning(false);
+    setShowPasswordFallback(false);
+    setIsSuccess(true);
+    timeoutRef.current = setTimeout(() => {
+      onSend(selectedContact, parseFloat(amount));
+    }, 1500);
+  };
+
+  // Password fallback: verify password then execute transfer
+  const handlePasswordVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fallbackPassword) {
+      setPasswordError('Please enter your password');
+      return;
+    }
+
+    setIsVerifyingPassword(true);
+    setPasswordError('');
+
+    try {
+      const verifyRes = await fetch(`${API_BASE}/api/auth/verify-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password: fallbackPassword })
+      });
+
+      if (!verifyRes.ok) {
+        const d = await verifyRes.json();
+        setPasswordError(d.error || 'Incorrect password');
+        return;
+      }
+
+      await executeTransfer();
+    } catch (err: any) {
+      setPasswordError(err.message || 'Transaction failed');
+    } finally {
+      setIsVerifyingPassword(false);
+    }
+  };
+
   const cancelFaceScan = () => {
     stopCamera();
     setIsFaceScanning(false);
     setIsScanning(false);
     setFaceError('');
     setScanProgress(0);
+    setShowPasswordFallback(false);
+    setFallbackPassword('');
+    setPasswordError('');
   };
 
   const handleAmountChange = (value: string) => {
@@ -247,7 +291,7 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
     );
   }
 
-  // Face scanning screen
+  // Face scanning / password fallback screen
   if (isFaceScanning) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-black flex items-center justify-center p-6">
@@ -257,101 +301,175 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
           className="max-w-md w-full"
         >
           <div className="text-center mb-6">
-            <h2 className="text-2xl text-white mb-1">Verify Face to Send</h2>
+            <h2 className="text-2xl text-white mb-1">Verify to Send</h2>
             <p className="text-purple-300 text-sm">
               ₹{parseFloat(amount || '0').toFixed(2)} → {selectedContact}
             </p>
           </div>
 
           <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <div className="relative aspect-square mb-6 rounded-2xl overflow-hidden bg-black">
-              {cameraError ? (
-                <div className="absolute inset-0 flex items-center justify-center text-white bg-gray-900">
-                  <div className="text-center">
-                    <Scan className="w-16 h-16 mx-auto mb-3 text-purple-400" />
-                    <p>Camera not available</p>
+            {/* Password fallback mode */}
+            {showPasswordFallback ? (
+              <motion.div
+                key="password-fallback"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="text-center mb-5">
+                  <div className="inline-flex items-center justify-center w-14 h-14 bg-purple-600/30 rounded-full mb-3">
+                    <Lock className="w-7 h-7 text-purple-300" />
+                  </div>
+                  <p className="text-white font-medium">Verify with Password</p>
+                  <p className="text-purple-300 text-sm mt-1">Face scan failed — enter your password to proceed</p>
+                </div>
+
+                <form onSubmit={handlePasswordVerify} className="space-y-4">
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400 w-5 h-5" />
+                    <Input
+                      type={showFallbackPwd ? 'text' : 'password'}
+                      value={fallbackPassword}
+                      onChange={(e) => { setFallbackPassword(e.target.value); setPasswordError(''); }}
+                      placeholder="Enter your password"
+                      className="bg-white/10 border-white/20 text-white placeholder:text-purple-300 pl-12 pr-12 py-6 rounded-2xl"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowFallbackPwd(!showFallbackPwd)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-purple-400"
+                    >
+                      {showFallbackPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {passwordError && (
+                    <p className="text-red-400 text-sm text-center">{passwordError}</p>
+                  )}
+                  <Button
+                    type="submit"
+                    disabled={isVerifyingPassword}
+                    className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl text-lg disabled:opacity-50"
+                  >
+                    {isVerifyingPassword ? 'Verifying...' : 'Confirm & Send'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={cancelFaceScan}
+                    className="w-full text-purple-300 hover:text-white hover:bg-white/10 py-4 rounded-2xl"
+                  >
+                    <X className="mr-2 w-4 h-4" />
+                    Cancel
+                  </Button>
+                </form>
+              </motion.div>
+            ) : (
+              <>
+                {/* Camera view */}
+                <div className="relative aspect-square mb-6 rounded-2xl overflow-hidden bg-black">
+                  {cameraError ? (
+                    <div className="absolute inset-0 flex items-center justify-center text-white bg-gray-900">
+                      <div className="text-center">
+                        <Scan className="w-16 h-16 mx-auto mb-3 text-purple-400" />
+                        <p>Camera not available</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+
+                  {isScanning && (
+                    <motion.div
+                      initial={{ top: 0 }}
+                      animate={{ top: '100%' }}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                      className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-purple-400 to-transparent"
+                    />
+                  )}
+
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <motion.div
+                      animate={isScanning ? { scale: [1, 1.05, 1], opacity: [0.5, 1, 0.5] } : {}}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="w-48 h-60 border-4 border-purple-500 rounded-3xl"
+                      style={{ boxShadow: '0 0 40px rgba(168, 85, 247, 0.4)' }}
+                    >
+                      <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-white rounded-tl-2xl" />
+                      <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-white rounded-tr-2xl" />
+                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-white rounded-bl-2xl" />
+                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-white rounded-br-2xl" />
+                    </motion.div>
                   </div>
                 </div>
-              ) : (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-              )}
 
-              {/* Scanning overlay */}
-              {isScanning && (
-                <motion.div
-                  initial={{ top: 0 }}
-                  animate={{ top: '100%' }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                  className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-purple-400 to-transparent"
-                />
-              )}
+                {isScanning && (
+                  <div className="mb-4">
+                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${scanProgress}%` }}
+                        className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                      />
+                    </div>
+                    <p className="text-center text-white text-sm mt-2">
+                      Verifying... {Math.round(scanProgress)}%
+                    </p>
+                  </div>
+                )}
 
-              {/* Face detection frame */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <motion.div
-                  animate={isScanning ? {
-                    scale: [1, 1.05, 1],
-                    opacity: [0.5, 1, 0.5],
-                  } : {}}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="w-48 h-60 border-4 border-purple-500 rounded-3xl"
-                  style={{ boxShadow: '0 0 40px rgba(168, 85, 247, 0.4)' }}
-                >
-                  <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-white rounded-tl-2xl" />
-                  <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-white rounded-tr-2xl" />
-                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-white rounded-bl-2xl" />
-                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-white rounded-br-2xl" />
-                </motion.div>
-              </div>
-            </div>
+                {!isScanning && (
+                  <div className="space-y-3">
+                    <Button
+                      onClick={handleFaceScan}
+                      disabled={!modelsLoaded || cameraError}
+                      className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl text-lg disabled:opacity-50"
+                    >
+                      <Scan className="mr-2" />
+                      {modelsLoaded ? 'Scan & Verify' : 'Loading ML Models...'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={cancelFaceScan}
+                      className="w-full text-purple-300 hover:text-white hover:bg-white/10 py-4 rounded-2xl"
+                    >
+                      <X className="mr-2 w-4 h-4" />
+                      Cancel
+                    </Button>
+                  </div>
+                )}
 
-            {/* Progress bar */}
-            {isScanning && (
-              <div className="mb-4">
-                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                {faceError && (
                   <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${scanProgress}%` }}
-                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
-                  />
-                </div>
-                <p className="text-center text-white text-sm mt-2">
-                  Verifying... {Math.round(scanProgress)}%
-                </p>
-              </div>
-            )}
-
-            {!isScanning && (
-              <div className="space-y-3">
-                <Button
-                  onClick={handleFaceScan}
-                  disabled={!modelsLoaded || cameraError}
-                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-6 rounded-2xl text-lg disabled:opacity-50"
-                >
-                  <Scan className="mr-2" />
-                  {modelsLoaded ? 'Scan & Verify' : 'Loading ML Models...'}
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={cancelFaceScan}
-                  className="w-full text-purple-300 hover:text-white hover:bg-white/10 py-4 rounded-2xl"
-                >
-                  <X className="mr-2 w-4 h-4" />
-                  Cancel
-                </Button>
-              </div>
-            )}
-
-            {faceError && (
-              <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl">
-                <p className="text-center text-red-400 text-sm font-medium">{faceError}</p>
-              </div>
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 space-y-3"
+                  >
+                    <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-xl">
+                      <p className="text-center text-red-400 text-sm font-medium">{faceError}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        stopCamera();
+                        setFaceError('');
+                        setIsScanning(false);
+                        setScanProgress(0);
+                        setShowPasswordFallback(true);
+                      }}
+                      className="w-full border-purple-500/50 text-purple-300 hover:bg-purple-500/20 hover:text-white py-5 rounded-xl gap-2"
+                    >
+                      <Lock className="w-4 h-4" />
+                      Use Password Instead
+                    </Button>
+                  </motion.div>
+                )}
+              </>
             )}
           </div>
         </motion.div>
@@ -412,7 +530,6 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
         <div className="mb-6">
           <h3 className="text-white text-lg mb-4">Send to</h3>
 
-          {/* Search */}
           <div className="mb-4">
             <Input
               placeholder="Search contacts..."
@@ -420,7 +537,6 @@ export function SendMoney({ onBack, onSend }: SendMoneyProps) {
             />
           </div>
 
-          {/* Recent Contacts */}
           <div className="space-y-2">
             {contacts.length === 0 && <p className="text-purple-300 text-sm text-center">No other users found.</p>}
             {contacts.map((contact) => (
